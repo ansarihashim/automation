@@ -138,6 +138,24 @@ COLUMN_MAPPING = {
     "Remarks":             "Remarks",
 }
 
+# Presentation rename: internal mother column name → final display header.
+RENAME_MAP = {
+    "Booking Date":        "DATE",
+    "Invoice Date":        "DATE",
+    "Consignment No":      "C/NO",
+    "Reference No":        "C/NOR",
+    "Consignee Name":      "C/NEE",
+    "Destination":         "DEST",
+    "Destination Pincode": "PIN CODE",
+    "Invoice Number":      "INVOICE NO",
+    "Service Type":        "TYPE",
+    "No of Packages":      "QUTY",
+    "Delivery Status":     "STATUS",
+    "Delivery Date":       "D DATE",
+    "Remarks":             "REMARKS",
+    "Expected Date":       "Expected delivery",
+}
+
 
 def _normalize_col(col: str) -> str:
     """Normalize a column name: strip, lowercase, spaces → underscores."""
@@ -204,6 +222,12 @@ def generate_client_mis_files(batch_folder: str) -> dict:
         }
 
     mother_df["Client_Name"] = df["Order id"].astype(str).str.strip()
+
+    # -- 4b. Rename columns for presentation (RENAME_MAP) -------------------
+    mother_df.rename(
+        columns={k: v for k, v in RENAME_MAP.items() if k in mother_df.columns},
+        inplace=True,
+    )
 
     # -- 5. Save mother.xlsx to processed/ subfolder -------------------------
     processed_dir = os.path.join(batch_folder, "processed")
