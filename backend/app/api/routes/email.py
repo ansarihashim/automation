@@ -2,10 +2,45 @@ from fastapi import APIRouter, HTTPException
 import os
 from app.services.file_service import load_batch_by_id, save_batch
 from app.services.email_service import AmazonSESEmailService
-from app.models.schemas import EmailSendRequest, EmailPreviewRequest
+from app.services.processing_service import send_client_mis_emails
+from app.models.schemas import EmailSendRequest, EmailPreviewRequest, MISEmailRequest
 
 router = APIRouter()
 email_service = AmazonSESEmailService()
+
+STORAGE_DIR = "app/storage/batches"
+
+
+@router.post("/send-mis")
+async def send_mis_emails(request: MISEmailRequest):
+    """
+    Phase-3: Send MIS Excel files to each client via AWS SES.
+    POST /api/email/send-mis
+    Body: { "batch_id": "...", "limit": <optional int> }
+    """
+    batch_folder = os.path.join(STORAGE_DIR, request.batch_id)
+
+    if not os.path.exists(batch_folder):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Batch '{request.batch_id}' not found.",
+        )
+
+    result = send_client_mis_emails(
+        batch_folder=batch_folder,
+        clients=request.clients,
+        limit=request.limit,
+    )
+
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+
+    return {
+        "message": "MIS emails sent",
+        "total_sent": result["total_sent"],
+        "failed": result["failed"],
+        "errors": result["errors"],
+    }
 
 @router.post("/send")
 async def send_emails(request: EmailSendRequest):

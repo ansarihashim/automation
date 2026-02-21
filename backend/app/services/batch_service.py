@@ -1,47 +1,30 @@
 import os
 import json
-import glob
 from datetime import datetime
 
 STORAGE_DIR = "app/storage/batches"
 
 class BatchService:
     def list_batches(self):
-        """List all batches with simplified status tracking"""
+        """List all batches — only reads batches that have a meta.json (new format)."""
         if not os.path.exists(STORAGE_DIR):
             return []
-            
-        batch_dirs = glob.glob(os.path.join(STORAGE_DIR, "batch_*"))
-        
+
         batches = []
-        for batch_dir in batch_dirs:
-            summary_path = os.path.join(batch_dir, "summary.json")
-            if os.path.exists(summary_path):
-                try:
-                    with open(summary_path, "r") as f:
-                        data = json.load(f)
-                        
-                    # Calculate simplified stats - using "rows" instead of "customers"
-                    rows = data.get("rows", [])
-                    total_rows = len(rows)
-                    sent_count = len([r for r in rows if r.get("status") == "Sent"])
-                    failed_count = len([r for r in rows if r.get("status") == "Failed"])
-                    remaining_count = len([r for r in rows if r.get("status") == "NotSent"])
-                    
-                    batches.append({
-                        "batch_id": data.get("batch_id"),
-                        "created_at": data.get("created_at"),
-                        "total_rows": total_rows,
-                        "sent_count": sent_count,
-                        "failed_count": failed_count,
-                        "remaining_count": remaining_count
-                    })
-                except Exception as e:
-                    print(f"Error loading batch {batch_dir}: {e}")
-                    continue
-        
-        # Sort by created_at desc (newest first)
-        return sorted(batches, key=lambda x: x.get("created_at", ""), reverse=True)
+        for folder in sorted(os.listdir(STORAGE_DIR), reverse=True):
+            meta_path = os.path.join(STORAGE_DIR, folder, "meta.json")
+            if not os.path.exists(meta_path):
+                continue
+            try:
+                with open(meta_path, "r") as f:
+                    data = json.load(f)
+                batches.append(data)
+            except Exception as e:
+                print(f"Error loading meta for {folder}: {e}")
+
+        # Sort newest first by created_at ISO string
+        batches.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return batches
     
     def get_batch(self, batch_id: str):
         """Get full batch data by ID"""
@@ -64,11 +47,11 @@ class BatchService:
             json.dump(batch_data, f, indent=4)
     
     def get_batch_files(self, batch_id: str):
-        """Get file paths for a batch"""
+        """Get file paths for a batch (new folder structure)."""
         batch_dir = os.path.join(STORAGE_DIR, batch_id)
         return {
-            "master": os.path.join(batch_dir, "master.xlsx"),
-            "mother": os.path.join(batch_dir, "mother.xlsx"),
-            "summary": os.path.join(batch_dir, "summary.json"),
-            "email_log": os.path.join(batch_dir, "email_log.json")
+            "master":    os.path.join(batch_dir, "raw", "master.xlsx"),
+            "email":     os.path.join(batch_dir, "raw", "email_mapping.xlsx"),
+            "processed": os.path.join(batch_dir, "processed", "processed_master.xlsx"),
+            "meta":      os.path.join(batch_dir, "meta.json"),
         }

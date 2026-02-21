@@ -37,3 +37,9 @@ class EmailPreviewRequest(BaseModel):
     """Request to preview an email"""
     batch_id: str
     row_id: int  # Changed from customer_email to row_id
+
+class MISEmailRequest(BaseModel):
+    """Request to send Phase-3 MIS emails to clients"""
+    batch_id: str
+    clients: Optional[List[str]] = None  # client names to send to; None = all
+    limit: Optional[int] = None          # max emails to send; None = no cap
