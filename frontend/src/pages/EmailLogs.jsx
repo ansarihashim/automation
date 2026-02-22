@@ -11,17 +11,15 @@ const EmailLogs = () => {
     }, []);
 
     const getStatusBadge = (status) => {
-        switch (status) {
-            case 'Success':
-            case 'Sent':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100"><CheckCircle size={12} /> Sent</span>;
-            case 'Failed':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100"><AlertCircle size={12} /> Failed</span>;
-            case 'Scheduled':
-                return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"><Clock size={12} /> Scheduled</span>;
-            default:
-                return <span className="text-gray-500 text-sm">{status}</span>;
+        const s = (status || '').toLowerCase();
+        if (s === 'sent' || s === 'success') {
+            return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100"><CheckCircle size={12} /> Sent</span>;
+        } else if (s === 'failed') {
+            return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100"><AlertCircle size={12} /> Failed</span>;
+        } else if (s === 'scheduled') {
+            return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"><Clock size={12} /> Scheduled</span>;
         }
+        return <span className="text-gray-500 text-sm">{status}</span>;
     };
 
     return (
@@ -64,14 +62,24 @@ const EmailLogs = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                logs.map((log, index) => (
+                                logs
+                                .filter(log => {
+                                    const q = search.toLowerCase();
+                                    return !q ||
+                                        (log.email || '').toLowerCase().includes(q) ||
+                                        (log.client_name || '').toLowerCase().includes(q) ||
+                                        (log.batch_id || '').toLowerCase().includes(q) ||
+                                        (log.status || '').toLowerCase().includes(q);
+                                })
+                                .map((log, index) => (
                                     <tr key={index} className="transition-colors duration-150 ease-in-out hover:bg-gray-50 cursor-default group">
                                         <td className="px-6 py-4">
-                                            <div className="font-medium text-sm text-gray-900">{log.email}</div>
+                                            {log.client_name && <div className="font-medium text-sm text-gray-900">{log.client_name}</div>}
+                                            <div className="text-sm text-gray-700">{log.email}</div>
                                             <div className="text-xs text-gray-400 mt-0.5">Batch: {log.batch_id}</div>
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
-                                            {new Date(log.timestamp).toLocaleString()}
+                                            {log.sent_at ? new Date(log.sent_at).toLocaleString() : '—'}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {getStatusBadge(log.status)}

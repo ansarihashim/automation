@@ -14,6 +14,12 @@ async def connect_to_mongo():
     db = client["kiirus_automation"]
     # Ensure unique index on email
     await db["users"].create_index("email", unique=True)
+    # Batch persistence indexes
+    await db["batches"].create_index("batch_id", unique=True)
+    await db["batches"].create_index("created_at")
+    # Email log indexes
+    await db["email_logs"].create_index("batch_id")
+    await db["email_logs"].create_index("sent_at")
     print("✅ Connected to MongoDB")
 
 

@@ -43,3 +43,4 @@ class MISEmailRequest(BaseModel):
     batch_id: str
     clients: Optional[List[str]] = None  # client names to send to; None = all
     limit: Optional[int] = None          # max emails to send; None = no cap
+    file_type: Optional[str] = "generated"  # "generated" | "custom"

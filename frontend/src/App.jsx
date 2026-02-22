@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
 import UploadPage from './pages/UploadPage';
 import FilesPage from './pages/FilesPage';
+import BatchDetailsPage from './pages/BatchDetailsPage';
 import EmailPage from './pages/EmailPage';
 import EmailLogs from './pages/EmailLogs';
 import AdminPage from './pages/AdminPage';
@@ -32,6 +33,7 @@ function App() {
             <Route index element={<Navigate to="/upload" replace />} />
             <Route path="upload" element={<UploadPage />} />
             <Route path="files" element={<FilesPage />} />
+            <Route path="batches/:batch_id" element={<BatchDetailsPage />} />
             <Route path="email" element={<EmailPage />} />
             <Route path="logs" element={<EmailLogs />} />
 

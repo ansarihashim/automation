@@ -99,6 +99,11 @@ export const getBatches = async () => {
     return response.data;
 };
 
+export const getRecentBatches = async () => {
+    const response = await api.get('/batches/recent');
+    return response.data;
+};
+
 export const getBatchById = async (batchId) => {
     const response = await api.get(`/batches/${batchId}`);
     return response.data;

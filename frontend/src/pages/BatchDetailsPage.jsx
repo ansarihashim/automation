@@ -1,437 +1,322 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getBatchFiles, approveCustomer, rejectCustomer, updateCustomer, deleteCustomer, sendEmails, previewEmail, sendSingleEmail } from '../services/api';
-import { CheckCircle, XCircle, Edit2, Trash2, Mail, Loader2, X, Package, Weight, AlertCircle, Eye } from 'lucide-react';
-import EmailPreviewModal from '../components/EmailPreviewModal';
+import {
+    ArrowLeft, CheckCircle, Clock, XCircle, FileText, ExternalLink,
+    Send, Users, Calendar, Database, RefreshCw, Upload,
+} from 'lucide-react';
+import api from '../services/api';
+import MISClientModal from '../components/MISClientModal';
+import WriteAccess from '../components/WriteAccess';
 
+// ---------------------------------------------------------------------------
+// Status badge
+// ---------------------------------------------------------------------------
+const StatusBadge = ({ status }) => {
+    const map = {
+        sent: { cls: 'bg-green-50 text-green-700 border-green-200', icon: <CheckCircle size={11} />, label: 'Sent' },
+        failed: { cls: 'bg-red-50 text-red-700 border-red-200', icon: <XCircle size={11} />, label: 'Failed' },
+        pending: { cls: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: <Clock size={11} />, label: 'Pending' },
+    };
+    const cfg = map[status] || map.pending;
+    return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}>
+            {cfg.icon} {cfg.label}
+        </span>
+    );
+};
+
+// ---------------------------------------------------------------------------
+// Stat card
+// ---------------------------------------------------------------------------
+const StatCard = ({ icon, label, value, color = 'blue' }) => {
+    const colorMap = {
+        blue: 'bg-blue-50 text-blue-600',
+        green: 'bg-green-50 text-green-600',
+        yellow: 'bg-yellow-50 text-yellow-600',
+        red: 'bg-red-50 text-red-600',
+    };
+    return (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${colorMap[color]}`}>
+                {icon}
+            </div>
+            <div>
+                <p className="text-xs text-gray-500">{label}</p>
+                <p className="text-lg font-bold text-gray-900">{value}</p>
+            </div>
+        </div>
+    );
+};
+
+// ---------------------------------------------------------------------------
+// Main Page
+// ---------------------------------------------------------------------------
 const BatchDetailsPage = () => {
-    const { batchId } = useParams();
+    const { batch_id } = useParams();
     const navigate = useNavigate();
-    const [customers, setCustomers] = useState([]);
+
+    const [batch, setBatch] = useState(null);
+    const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [processing, setProcessing] = useState(false);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
 
-    // Edit modal state
-    const [editingCustomer, setEditingCustomer] = useState(null);
-    const [editForm, setEditForm] = useState({
-        shipment_count: 0,
-        total_parcels: 0,
-        total_weight: 0,
-        pending_payments: 0
-    });
+    const [selected, setSelected] = useState(new Set());
+    const [sending, setSending] = useState(false);
+    const [sendResult, setSendResult] = useState(null);
+    const [sendError, setSendError] = useState('');
 
-    // Email preview state
-    const [emailPreview, setEmailPreview] = useState(null);
-    const [previewLoading, setPreviewLoading] = useState(false);
-    const [sendingEmail, setSendingEmail] = useState(false);
+    const [modalClient, setModalClient] = useState(null);
 
-    const fetchCustomers = async () => {
+    // ── Load data ────────────────────────────────────────────────────────────
+    const loadData = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            const data = await getBatchFiles(batchId);
-            setCustomers(data.data);
+            const [batchRes, clientRes] = await Promise.all([
+                api.get(`/batches/${batch_id}`),
+                api.get(`/email/mis-preview/${batch_id}`),
+            ]);
+            setBatch(batchRes.data);
+            const list = clientRes.data.clients || [];
+            setClients(list);
+            // Pre-select all non-sent clients
+            setSelected(new Set(list.filter(c => c.status !== 'sent').map(c => c.client_name)));
         } catch (err) {
-            console.error('Failed to fetch customers:', err);
-            setError('Failed to load batch data');
+            setError(err.response?.data?.detail || 'Failed to load batch details.');
         } finally {
             setLoading(false);
         }
-    };
+    }, [batch_id]);
 
-    useEffect(() => {
-        if (batchId) {
-            fetchCustomers();
-        }
-    }, [batchId]);
+    useEffect(() => { loadData(); }, [loadData]);
 
-    const handleApprove = async (email) => {
-        setProcessing(true);
-        setError('');
-        try {
-            await approveCustomer(batchId, email);
-            setSuccess(`Approved ${email}`);
-            await fetchCustomers();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            setError('Failed to approve customer');
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    const handleReject = async (email) => {
-        setProcessing(true);
-        setError('');
-        try {
-            await rejectCustomer(batchId, email);
-            setSuccess(`Rejected ${email}`);
-            await fetchCustomers();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            setError('Failed to reject customer');
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    const openEditModal = (customer) => {
-        setEditingCustomer(customer);
-        setEditForm({
-            shipment_count: customer.shipment_count,
-            total_parcels: customer.total_parcels,
-            total_weight: customer.total_weight,
-            pending_payments: customer.pending_payments
+    // ── Selection helpers ────────────────────────────────────────────────────
+    const toggleClient = (name) => {
+        setSelected(prev => {
+            const next = new Set(prev);
+            next.has(name) ? next.delete(name) : next.add(name);
+            return next;
         });
     };
 
-    const handleUpdate = async () => {
-        setProcessing(true);
-        setError('');
+    const toggleAll = () => {
+        if (selected.size === clients.length) setSelected(new Set());
+        else setSelected(new Set(clients.map(c => c.client_name)));
+    };
+
+    // ── Bulk send ────────────────────────────────────────────────────────────
+    const handleBulkSend = async () => {
+        if (selected.size === 0) return;
+        setSending(true);
+        setSendError('');
+        setSendResult(null);
         try {
-            await updateCustomer(batchId, editingCustomer.customer_email, editForm);
-            setSuccess(`Updated ${editingCustomer.customer_name}`);
-            setEditingCustomer(null);
-            await fetchCustomers();
-            setTimeout(() => setSuccess(''), 3000);
+            const res = await api.post('/email/send-mis', {
+                batch_id,
+                clients: Array.from(selected),
+                file_type: 'generated',
+            });
+            setSendResult(res.data);
+            await loadData();
         } catch (err) {
-            setError('Failed to update customer');
+            setSendError(err.response?.data?.detail || err.message);
         } finally {
-            setProcessing(false);
+            setSending(false);
         }
     };
 
-    const handleDelete = async (customer) => {
-        if (!window.confirm(`Delete ${customer.customer_name} from this batch?`)) {
-            return;
-        }
+    // ── Counts ───────────────────────────────────────────────────────────────
+    const sentCount    = clients.filter(c => c.status === 'sent').length;
+    const failedCount  = clients.filter(c => c.status === 'failed').length;
+    const pendingCount = clients.filter(c => !c.status || c.status === 'pending').length;
 
-        setProcessing(true);
-        setError('');
-        try {
-            await deleteCustomer(batchId, customer.customer_email);
-            setSuccess(`Deleted ${customer.customer_name}`);
-            await fetchCustomers();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            setError('Failed to delete customer');
-        } finally {
-            setProcessing(false);
-        }
+    const formatDate = (iso) => {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
     };
 
-    const handleSendEmails = async () => {
-        const approvedCount = customers.filter(c => c.status === 'Approved').length;
-        if (!window.confirm(`Send emails to ${approvedCount} approved customer(s)?`)) {
-            return;
-        }
-
-        setProcessing(true);
-        setError('');
-        try {
-            const stats = await sendEmails(batchId);
-            setSuccess(`Emails sent! Sent: ${stats.sent}, Failed: ${stats.failed}`);
-            await fetchCustomers();
-            setTimeout(() => setSuccess(''), 5000);
-        } catch (err) {
-            setError('Failed to send emails');
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    const handlePreviewEmail = async (customer) => {
-        setPreviewLoading(true);
-        setError('');
-        try {
-            const preview = await previewEmail(batchId, customer.customer_email);
-            setEmailPreview(preview);
-        } catch (err) {
-            setError('Failed to load email preview');
-            console.error('Preview error:', err);
-        } finally {
-            setPreviewLoading(false);
-        }
-    };
-
-    const handleSendFromPreview = async () => {
-        if (!emailPreview) return;
-
-        setSendingEmail(true);
-        setError('');
-        try {
-            await sendSingleEmail(batchId, emailPreview.customer_email);
-            setSuccess(`Email sent successfully to ${emailPreview.customer_email}`);
-            setEmailPreview(null);
-            await fetchCustomers();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            setError('Failed to send email');
-            console.error('Send error:', err);
-        } finally {
-            setSendingEmail(false);
-        }
-    };
-
-    const handleClosePreview = () => {
-        if (!sendingEmail) {
-            setEmailPreview(null);
-        }
-    };
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'Approved': return 'bg-green-50 text-green-700 border-green-100';
-            case 'Rejected': return 'bg-red-50 text-red-700 border-red-100';
-            case 'Sent': return 'bg-blue-50 text-blue-700 border-blue-100';
-            case 'Failed': return 'bg-orange-50 text-orange-700 border-orange-100';
-            default: return 'bg-gray-50 text-gray-700 border-gray-100';
-        }
-    };
-
-    if (!batchId) {
+    // ── Loading / error ───────────────────────────────────────────────────────
+    if (loading) {
         return (
-            <div className="p-8 text-center">
-                <p className="text-gray-500">No batch selected</p>
-                <button onClick={() => navigate('/')} className="mt-4 text-red-600 hover:text-red-700">
-                    Return to Dashboard
+            <div className="flex items-center justify-center h-96">
+                <div className="flex items-center gap-2 text-gray-500">
+                    <RefreshCw size={18} className="animate-spin" />
+                    Loading batch details…
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="max-w-2xl mx-auto mt-12 text-center space-y-4">
+                <XCircle size={48} className="mx-auto text-red-400" />
+                <p className="text-red-600 font-medium">{error}</p>
+                <button onClick={() => navigate('/files')}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
+                    ← Back to Files
                 </button>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-semibold text-gray-900">Batch Details</h1>
-                    <p className="text-gray-500 mt-1">Batch: {batchId}</p>
-                    <p className="text-sm text-gray-400 mt-1">{customers.length} customer(s)</p>
-                </div>
+        <div className="space-y-6">
 
-                <button
-                    onClick={handleSendEmails}
-                    disabled={processing || customers.filter(c => c.status === 'Approved').length === 0}
-                    className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
-                >
-                    <Mail size={20} />
-                    Send Emails ({customers.filter(c => c.status === 'Approved').length})
-                </button>
+            {/* ── Header ── */}
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <button onClick={() => navigate('/files')}
+                        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-2 transition-colors">
+                        <ArrowLeft size={15} /> Back to Files
+                    </button>
+                    <h1 className="text-2xl font-bold text-gray-900 font-mono">{batch_id}</h1>
+                    <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+                        <Calendar size={13} /> Created {formatDate(batch?.created_at)}
+                    </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                    {batch?.mother_file_url && (
+                        <a href={batch.mother_file_url} target="_blank" rel="noreferrer"
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                            <ExternalLink size={13} /> Mother File
+                        </a>
+                    )}
+                    <button onClick={loadData}
+                        className="flex items-center gap-1.5 text-sm px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                        <RefreshCw size={13} /> Refresh
+                    </button>
+                </div>
             </div>
 
-            {/* Success Message */}
-            {success && (
-                <div className="bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg flex items-center gap-3">
-                    <CheckCircle size={20} />
-                    <p>{success}</p>
-                </div>
-            )}
+            {/* ── Stats row ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard icon={<Database size={16} />}    label="Total Rows" value={batch?.total_rows ?? '—'}  color="blue" />
+                <StatCard icon={<Users size={16} />}       label="Clients"    value={clients.length}            color="blue" />
+                <StatCard icon={<CheckCircle size={16} />} label="Sent"       value={sentCount}                 color="green" />
+                <StatCard icon={<Clock size={16} />}       label="Pending"    value={pendingCount}              color="yellow" />
+            </div>
 
-            {/* Error Message */}
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg flex items-center gap-3">
-                    <AlertCircle size={20} />
-                    <p>{error}</p>
+            {/* ── Client table ── */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <h2 className="text-sm font-semibold text-gray-800">
+                        Client List
+                        <span className="ml-1.5 text-xs font-normal text-gray-400">({clients.length})</span>
+                    </h2>
+                    <button onClick={toggleAll} className="text-xs text-blue-600 hover:text-blue-800 font-medium underline">
+                        {selected.size === clients.length ? 'Unselect All' : 'Select All'}
+                    </button>
                 </div>
-            )}
 
-            {/* Loading State */}
-            {loading ? (
-                <div className="py-12 text-center text-gray-500">
-                    <Loader2 className="animate-spin mx-auto mb-2" size={32} />
-                    <p>Loading customers...</p>
-                </div>
-            ) : customers.length === 0 ? (
-                /* Empty State */
-                <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-                    <Package className="mx-auto mb-4 text-gray-300" size={64} />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Customers</h3>
-                    <p className="text-gray-500">This batch has no customers.</p>
-                </div>
-            ) : (
-                /* Customer Table */
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                {clients.length === 0 ? (
+                    <div className="py-12 text-center text-gray-400 text-sm">No clients found for this batch.</div>
+                ) : (
                     <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shipments</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parcels</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight (kg)</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pending</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                                    <th className="px-4 py-2.5 text-left w-8"></th>
+                                    <th className="px-4 py-2.5 text-left">Client</th>
+                                    <th className="px-4 py-2.5 text-left">Email</th>
+                                    <th className="px-4 py-2.5 text-left">Status</th>
+                                    <th className="px-4 py-2.5 text-left">Files</th>
+                                    <th className="px-4 py-2.5 text-left">Action</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {customers.map((customer, index) => (
-                                    <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-900">{customer.customer_name}</p>
-                                                <p className="text-xs text-gray-500">{customer.customer_email}</p>
+                            <tbody className="divide-y divide-gray-50">
+                                {clients.map((client) => (
+                                    <tr key={client.client_name} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.has(client.client_name)}
+                                                onChange={() => toggleClient(client.client_name)}
+                                                className="rounded border-gray-300 text-blue-600"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                                            {client.client_name}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-500 text-xs">
+                                            {client.recipient_email || <span className="text-red-400 italic">No email</span>}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <StatusBadge status={client.status || 'pending'} />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                {client.generated_url && (
+                                                    <a href={client.generated_url} target="_blank" rel="noreferrer"
+                                                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800" title="Generated">
+                                                        <FileText size={12} /> Gen
+                                                    </a>
+                                                )}
+                                                {client.custom_url && (
+                                                    <a href={client.custom_url} target="_blank" rel="noreferrer"
+                                                        className="flex items-center gap-1 text-xs text-yellow-600 hover:text-yellow-800" title="Custom">
+                                                        <Upload size={12} /> Custom
+                                                    </a>
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">{customer.shipment_count}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">{customer.total_parcels}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">{customer.total_weight}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">{customer.pending_payments}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(customer.status)}`}>
-                                                {customer.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                {customer.status === 'Pending' && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => handleApprove(customer.customer_email)}
-                                                            disabled={processing}
-                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                                                            title="Approve"
-                                                        >
-                                                            <CheckCircle size={18} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleReject(customer.customer_email)}
-                                                            disabled={processing}
-                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                                                            title="Reject"
-                                                        >
-                                                            <XCircle size={18} />
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {customer.status === 'Approved' && (
-                                                    <button
-                                                        onClick={() => handlePreviewEmail(customer)}
-                                                        disabled={previewLoading}
-                                                        className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50"
-                                                        title="View Email"
-                                                    >
-                                                        {previewLoading ? (
-                                                            <Loader2 size={18} className="animate-spin" />
-                                                        ) : (
-                                                            <Eye size={18} />
-                                                        )}
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={() => openEditModal(customer)}
-                                                    disabled={processing}
-                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(customer)}
-                                                    disabled={processing}
-                                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
+                                        <td className="px-4 py-3">
+                                            <button
+                                                onClick={() => setModalClient(client)}
+                                                className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors font-medium">
+                                                Manage
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
-            {/* Email Preview Modal */}
-            <EmailPreviewModal
-                preview={emailPreview}
-                onClose={handleClosePreview}
-                onSend={handleSendFromPreview}
-                sending={sendingEmail}
+            {/* ── Bulk send ── */}
+            <WriteAccess fallback={
+                <p className="text-sm text-gray-400 italic text-center py-2">Read-only access — sending disabled.</p>
+            }>
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+                    <p className="text-sm font-semibold text-gray-800">
+                        Bulk Send — <span className="text-blue-600">{selected.size} selected</span>
+                    </p>
+                    {sendResult && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-800">
+                            ✅ Sent: {sendResult.total_sent} &nbsp;|&nbsp; Failed: {sendResult.failed}
+                        </div>
+                    )}
+                    {sendError && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
+                            {sendError}
+                        </div>
+                    )}
+                    <button
+                        onClick={handleBulkSend}
+                        disabled={selected.size === 0 || sending}
+                        className={`w-full py-2.5 rounded-lg font-semibold text-white text-sm flex items-center justify-center gap-2 transition-all
+                            ${selected.size === 0 || sending
+                                ? 'bg-gray-300 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-sm'}`}>
+                        <Send size={15} />
+                        {sending ? 'Sending…' : `Send to ${selected.size} client${selected.size !== 1 ? 's' : ''}`}
+                    </button>
+                </div>
+            </WriteAccess>
+
+            {/* ── Per-client modal ── */}
+            <MISClientModal
+                isOpen={!!modalClient}
+                client={modalClient}
+                batchId={batch_id}
+                onClose={() => setModalClient(null)}
+                onSent={() => { loadData(); setModalClient(null); }}
             />
-
-            {/* Edit Modal */}
-            {editingCustomer && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900">Edit Customer</h3>
-                            <button
-                                onClick={() => setEditingCustomer(null)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <p className="text-sm text-gray-600 mb-4">{editingCustomer.customer_name}</p>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Shipment Count</label>
-                                <input
-                                    type="number"
-                                    value={editForm.shipment_count}
-                                    onChange={(e) => setEditForm({ ...editForm, shipment_count: parseInt(e.target.value) || 0 })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Parcels</label>
-                                <input
-                                    type="number"
-                                    value={editForm.total_parcels}
-                                    onChange={(e) => setEditForm({ ...editForm, total_parcels: parseInt(e.target.value) || 0 })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Weight (kg)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    value={editForm.total_weight}
-                                    onChange={(e) => setEditForm({ ...editForm, total_weight: parseFloat(e.target.value) || 0 })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Pending Payments</label>
-                                <input
-                                    type="number"
-                                    value={editForm.pending_payments}
-                                    onChange={(e) => setEditForm({ ...editForm, pending_payments: parseInt(e.target.value) || 0 })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setEditingCustomer(null)}
-                                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleUpdate}
-                                disabled={processing}
-                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                            >
-                                {processing ? 'Updating...' : 'Update'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

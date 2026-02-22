@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Download, Mail, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Eye, Clock, CheckCircle, XCircle } from 'lucide-react';
 import api from '../services/api';
 
 const FilesPage = () => {
@@ -27,27 +27,7 @@ const FilesPage = () => {
     };
 
     const handleBatchClick = (batchId) => {
-        navigate(`/email?batch_id=${batchId}`);
-    };
-
-    const handleDownload = async (batchId, fileType, e) => {
-        e.stopPropagation(); // Prevent row click
-        try {
-            const response = await api.get(`/batches/${batchId}/download/${fileType}`, {
-                responseType: 'blob'
-            });
-            
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `${batchId}_${fileType}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (err) {
-            console.error('Download failed:', err);
-            alert('Failed to download file');
-        }
+        navigate(`/batches/${batchId}`);
     };
 
     const formatDate = (isoString) => {
@@ -163,35 +143,17 @@ const FilesPage = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex space-x-2">
-                                                <button
-                                                    onClick={(e) => handleDownload(batch.batch_id, 'master', e)}
-                                                    className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
-                                                    title="Download Master File"
-                                                >
-                                                    <Download className="h-3 w-3 mr-1" />
-                                                    Master
-                                                </button>
-                                                <button
-                                                    onClick={(e) => handleDownload(batch.batch_id, 'mother', e)}
-                                                    className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
-                                                    title="Download Mother File"
-                                                >
-                                                    <Download className="h-3 w-3 mr-1" />
-                                                    Mother
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleBatchClick(batch.batch_id);
-                                                    }}
-                                                    className="inline-flex items-center px-3 py-1 bg-red-500 text-white rounded-md text-xs font-medium hover:bg-red-600"
-                                                    title="Manage Emails"
-                                                >
-                                                    <Mail className="h-3 w-3 mr-1" />
-                                                    Emails
-                                                </button>
-                                            </div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleBatchClick(batch.batch_id);
+                                                }}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                                                title="View batch details"
+                                            >
+                                                <Eye className="h-3 w-3" />
+                                                View
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}

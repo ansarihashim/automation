@@ -1,12 +1,14 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 import shutil
 import os
+import json
 from datetime import datetime
 from app.services.processing_service import (
     process_master_file,
     process_master_with_email_validation,
     generate_client_mis_files,
 )
+from app.services.batch_mongo_service import create_batch
 from app.auth.dependencies import require_write_access
 from app.models.user_model import CurrentUser
 
@@ -82,27 +84,65 @@ async def upload_master(
         raise HTTPException(status_code=400, detail=result["message"])
 
     # 5. Run Phase-2: generate mother.xlsx + split client files
-    mis_result = generate_client_mis_files(batch_dir)
+    mis_result = generate_client_mis_files(batch_dir, batch_id=batch_id)
 
     if not mis_result["success"]:
         raise HTTPException(status_code=400, detail=mis_result["message"])
 
-    # 6. Save batch metadata
+    # 6. Save batch metadata to meta.json (local) + MongoDB (persistent)
     import json
     meta = {
         "batch_id": batch_id,
         "created_at": now.isoformat(),
         "total_rows": mis_result.get("total_rows", 0),
         "total_clients": mis_result["total_clients"],
-        "files": {
-            "master": "raw/master.xlsx",
-            "email": "raw/email_mapping.xlsx",
-            "mother": "processed/mother.xlsx",
-            "client_folder": "client_files/",
-        },
+        "mother_file_url": mis_result.get("mother_url"),
+        "mother_file_public_id": mis_result.get("mother_public_id"),
+        "client_files": mis_result.get("client_files", {}),
+        "custom_files": {},
     }
     with open(os.path.join(batch_dir, "meta.json"), "w") as f:
         json.dump(meta, f, indent=2)
+
+    # Load email map to build per-client records
+    email_map: dict = {}
+    map_path = os.path.join(batch_dir, "client_email_map.json")
+    if os.path.exists(map_path):
+        with open(map_path, "r") as f:
+            email_map = json.load(f)
+
+    client_files: dict = mis_result.get("client_files", {})
+    clients_list = []
+    for safe_name, cloud_info in sorted(client_files.items()):
+        display_name = safe_name.replace("_", " ").strip()
+        email = (
+            email_map.get(display_name)
+            or email_map.get(display_name.upper())
+            or ""
+        )
+        clients_list.append({
+            "client_name": display_name,
+            "safe_name": safe_name,
+            "email": email,
+            "generated_file_url": cloud_info.get("url"),
+            "custom_file_url": None,
+            "status": "pending",
+        })
+
+    mongo_doc = {
+        "batch_id": batch_id,
+        "created_at": now.isoformat(),
+        "total_rows": mis_result.get("total_rows", 0),
+        "total_clients": mis_result["total_clients"],
+        "status": "processed",
+        "mother_file_url": mis_result.get("mother_url"),
+        "clients": clients_list,
+    }
+    try:
+        await create_batch(mongo_doc)
+    except Exception as e:
+        # Do not fail the whole request if MongoDB write fails; log and continue
+        print(f"⚠️  MongoDB batch save failed: {e}")
 
     return {
         "batch_id": batch_id,

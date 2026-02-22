@@ -3,10 +3,28 @@ import json
 import os
 from datetime import datetime
 from fastapi import HTTPException
+from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill
+from app.utils.cloudinary_service import upload_excel, download_from_cloudinary
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _apply_excel_style(path: str) -> None:
+    """Apply bold header + yellow background (#FFFF00) to the first row of an Excel file."""
+    try:
+        wb = load_workbook(path)
+        ws = wb.active
+        yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+        bold_font = Font(bold=True)
+        for cell in ws[1]:
+            cell.font = bold_font
+            cell.fill = yellow_fill
+        wb.save(path)
+    except Exception as e:
+        print(f"⚠️  Excel styling failed for {path}: {e}")
+
 
 def normalize_name(name) -> str | None:
     """Normalize a client name: strip whitespace, uppercase. Returns None if null."""
@@ -120,46 +138,72 @@ def process_master_with_email_validation(
 # Phase-2: Generate Mother File + Split Client Files
 # ---------------------------------------------------------------------------
 
-# Fixed mapping: mother column name → exact master column name (strip only).
+# Fixed mapping: output column name → exact master column name (strip only).
+# "DATE" uses Pickup Date only — Manifest Date is intentionally excluded to avoid duplicates.
 COLUMN_MAPPING = {
-    "Consignment No":      "LRN",
-    "Invoice Date":        "Manifest Date",
-    "Booking Date":        "Pickup Date",
-    "Reference No":        "Order id",
-    "Consignee Name":      "Consignee name",
-    "Destination":         "Destination City",
-    "Destination Pincode": "Pin code",
-    "Invoice Number":      "Invoice Number",
-    "Service Type":        "Transaction Type",
-    "No of Packages":      "No of boxes",
-    "Delivery Status":     "Current Status",
-    "Delivery Date":       "Delivered Date",
-    "Expected Date":       "Expected Date",
-    "Remarks":             "Remarks",
+    "DATE":              "Pickup Date",
+    "C/NO":              "LRN",
+    "C/NOR":             "Order id",
+    "C/NEE":             "Consignee name",
+    "DEST":              "Destination City",
+    "PIN CODE":          "Pin code",
+    "INVOICE NO":        "Invoice Number",
+    "TYPE":              "Transaction Type",
+    "QUTY":              "No of boxes",
+    "STATUS":            "Current Status",
+    "D DATE":            "Delivered Date",
+    "REMARKS":           "Remarks",
+    "Expected delivery": "Expected Date",
 }
 
-# Presentation rename: internal mother column name → final display header.
-RENAME_MAP = {
-    "Booking Date":        "DATE",
-    "Invoice Date":        "DATE",
-    "Consignment No":      "C/NO",
-    "Reference No":        "C/NOR",
-    "Consignee Name":      "C/NEE",
-    "Destination":         "DEST",
-    "Destination Pincode": "PIN CODE",
-    "Invoice Number":      "INVOICE NO",
-    "Service Type":        "TYPE",
-    "No of Packages":      "QUTY",
-    "Delivery Status":     "STATUS",
-    "Delivery Date":       "D DATE",
-    "Remarks":             "REMARKS",
-    "Expected Date":       "Expected delivery",
-}
+# Final column order that every client/mother file must conform to.
+FINAL_COLUMNS = [
+    "DATE",
+    "C/NO",
+    "C/NOR",
+    "C/NEE",
+    "DEST",
+    "PIN CODE",
+    "INVOICE NO",
+    "TYPE",
+    "QUTY",
+    "STATUS",
+    "D DATE",
+    "REMARKS",
+    "Expected delivery",
+]
 
 
-def _normalize_col(col: str) -> str:
-    """Normalize a column name: strip, lowercase, spaces → underscores."""
-    return str(col).strip().lower().replace(" ", "_")
+def _clean_mis_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Standardize a MIS dataframe before saving to Excel:
+    1. Fill NaN / 'nan' / 'None' / '#' with empty string.
+    2. Format date columns as DD-MM-YYYY.
+    3. Strip trailing '.0' from PIN CODE and QUTY.
+    4. Strip leading/trailing spaces from all string columns.
+    """
+    # -- Missing values -------------------------------------------------------
+    df = df.fillna("")
+    for bad in ("nan", "None", "#", "NaT"):
+        df.replace(bad, "", inplace=True)
+
+    # -- Date formatting ------------------------------------------------------
+    for col in ["DATE", "D DATE", "Expected delivery"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
+            df[col] = df[col].fillna("")          # NaT → ""
+            df[col].replace("NaT", "", inplace=True)
+
+    # -- Numeric cleanup (remove spurious '.0') --------------------------------
+    for col in ["PIN CODE", "QUTY"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace("\.0$", "", regex=True)
+            df[col] = df[col].replace("nan", "").replace("None", "")
+
+    # -- Strip whitespace from all string columns -----------------------------
+    df = df.apply(lambda c: c.str.strip() if c.dtype == object else c)
+
+    return df
 
 
 def _safe_filename(client_name: str) -> str:
@@ -174,7 +218,7 @@ def _safe_filename(client_name: str) -> str:
     )
 
 
-def generate_client_mis_files(batch_folder: str) -> dict:
+def generate_client_mis_files(batch_folder: str, batch_id: str = None) -> dict:
     """
     Phase-2 — Generate Mother File + Split Client Files:
     1. Load master_with_clients.xlsx.
@@ -206,13 +250,14 @@ def generate_client_mis_files(batch_folder: str) -> dict:
     df.columns = [str(col).strip() for col in df.columns]
 
     # -- 3. Build mother_df using fixed COLUMN_MAPPING -----------------------
+    # COLUMN_MAPPING keys are already the final output column names.
     mother_df = pd.DataFrame(index=df.index)
 
-    for mother_col, master_col in COLUMN_MAPPING.items():
+    for out_col, master_col in COLUMN_MAPPING.items():
         if master_col in df.columns:
-            mother_df[mother_col] = df[master_col]
+            mother_df[out_col] = df[master_col]
         else:
-            mother_df[mother_col] = ""   # column truly missing — keep empty
+            mother_df[out_col] = ""   # column truly missing — keep empty
 
     # -- 4. Add Client_Name from 'Order id' column (only) -------------------
     if "Order id" not in df.columns:
@@ -223,28 +268,38 @@ def generate_client_mis_files(batch_folder: str) -> dict:
 
     mother_df["Client_Name"] = df["Order id"].astype(str).str.strip()
 
-    # -- 4b. Rename columns for presentation (RENAME_MAP) -------------------
-    mother_df.rename(
-        columns={k: v for k, v in RENAME_MAP.items() if k in mother_df.columns},
-        inplace=True,
-    )
+    # -- 4b. Enforce FINAL_COLUMNS order (all guaranteed present from mapping) ---
+    mother_df = mother_df[FINAL_COLUMNS + ["Client_Name"]]
 
-    # -- 5. Save mother.xlsx to processed/ subfolder -------------------------
-    processed_dir = os.path.join(batch_folder, "processed")
-    os.makedirs(processed_dir, exist_ok=True)
-    mother_path = os.path.join(processed_dir, "mother.xlsx")
-    mother_df.to_excel(mother_path, index=False)
+    # -- 4c. Clean missing values + format --------------------------------
+    mother_df = _clean_mis_df(mother_df)
+
+    # -- 5. Save mother.xlsx temporarily, upload to Cloudinary, delete local --
+    if batch_id is None:
+        batch_id = os.path.basename(batch_folder)
+
+    tmp_dir = os.path.join("app", "storage", "tmp", batch_id)
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    mother_tmp = os.path.join(tmp_dir, "mother.xlsx")
+    mother_df.to_excel(mother_tmp, index=False)
+    _apply_excel_style(mother_tmp)
+
+    try:
+        mother_cloud = upload_excel(mother_tmp, batch_id, "mother", "mother")
+    except Exception as e:
+        return {"success": False, "message": f"Cloudinary upload failed for mother.xlsx: {e}"}
+    finally:
+        if os.path.exists(mother_tmp):
+            os.remove(mother_tmp)
 
     total_rows = len(mother_df)
 
-    # -- 6. Split client-wise and save files ---------------------------------
-    client_folder = os.path.join(batch_folder, "client_files")
-    os.makedirs(client_folder, exist_ok=True)
-
+    # -- 6. Split client-wise, upload each to Cloudinary, no local retention --
     groups = mother_df.groupby("Client_Name", dropna=True)
 
     total_clients = 0
-    files_created = []
+    client_files_cloud: dict = {}
 
     for client, group_df in groups:
         # Skip blank or NaN string values
@@ -252,13 +307,32 @@ def generate_client_mis_files(batch_folder: str) -> dict:
             continue
 
         safe_name = client.replace(" ", "_").replace("/", "_")
-        file_path = os.path.join(client_folder, f"{safe_name}.xlsx")
+        tmp_path = os.path.join(tmp_dir, f"{safe_name}.xlsx")
 
         client_df = group_df.drop(columns=["Client_Name"])
-        client_df.to_excel(file_path, index=False)
+        # Enforce final column order, format and clean
+        client_df = client_df[FINAL_COLUMNS]
+        client_df = _clean_mis_df(client_df)
+        client_df.to_excel(tmp_path, index=False)
+        _apply_excel_style(tmp_path)
 
-        files_created.append(file_path)
+        try:
+            cloud_info = upload_excel(tmp_path, batch_id, "client_files", safe_name)
+            client_files_cloud[safe_name] = cloud_info
+        except Exception as e:
+            print(f"⚠️  Cloudinary upload failed for {safe_name}: {e}")
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
         total_clients += 1
+
+    # Clean up tmp batch dir if now empty
+    try:
+        if os.path.exists(tmp_dir) and not os.listdir(tmp_dir):
+            os.rmdir(tmp_dir)
+    except Exception:
+        pass
 
     if total_clients == 0:
         return {
@@ -272,7 +346,9 @@ def generate_client_mis_files(batch_folder: str) -> dict:
         "master_rows": len(df),
         "total_clients": total_clients,
         "mother_columns": list(mother_df.columns),
-        "files_created": files_created,
+        "mother_url": mother_cloud.get("url"),
+        "mother_public_id": mother_cloud.get("public_id"),
+        "client_files": client_files_cloud,
     }
 
 
@@ -280,7 +356,7 @@ def generate_client_mis_files(batch_folder: str) -> dict:
 # Phase-3: Send MIS emails to each client with their Excel file attached
 # ---------------------------------------------------------------------------
 
-def send_client_mis_emails(batch_folder: str, clients: list = None, limit: int = None) -> dict:
+def send_client_mis_emails(batch_folder: str, clients: list = None, limit: int = None, file_type: str = "generated") -> dict:
     """
     Phase-3 processing:
     1. Load client_email_map.json from the batch folder.
@@ -315,27 +391,42 @@ def send_client_mis_emails(batch_folder: str, clients: list = None, limit: int =
     except Exception as e:
         return {"success": False, "message": f"Cannot read client_email_map.json: {e}"}
 
-    # -- 2. Locate client Excel files -----------------------------------------
-    client_folder = os.path.join(batch_folder, "client_files")
-    if not os.path.exists(client_folder):
+    # -- 2. Load Cloudinary URLs from meta.json --------------------------------
+    meta_path = os.path.join(batch_folder, "meta.json")
+    if not os.path.exists(meta_path):
         return {
             "success": False,
-            "message": "client_files/ folder not found. Ensure Phase-2 completed successfully.",
+            "message": "meta.json not found. Ensure Phase-2 completed successfully.",
         }
 
-    files = [f for f in os.listdir(client_folder) if f.endswith(".xlsx")]
-    if not files:
-        return {"success": False, "message": "No client Excel files found in client_files/."}
+    try:
+        with open(meta_path, "r") as _mf:
+            meta = json.load(_mf)
+    except Exception as e:
+        return {"success": False, "message": f"Cannot read meta.json: {e}"}
+
+    cloud_generated: dict = meta.get("client_files", {})
+    cloud_custom: dict = meta.get("custom_files", {})
+
+    if not cloud_generated:
+        return {"success": False, "message": "No client files found in meta.json. Ensure Phase-2 completed successfully."}
+
+    all_safe_names = list(cloud_generated.keys())
 
     # -- 3a. Filter to selected clients only (if a list was provided) ---------
     if clients:
-        requested = {c.upper().strip() for c in clients}
-        files = [
-            f for f in files
-            if f.replace(".xlsx", "").replace("_", " ").strip().upper() in requested
+        requested_safe  = {c.upper().strip().replace(" ", "_") for c in clients}
+        requested_space = {c.upper().strip() for c in clients}
+        all_safe_names = [
+            sn for sn in all_safe_names
+            if sn.upper() in requested_safe or sn.replace("_", " ").upper() in requested_space
         ]
-        if not files:
+        if not all_safe_names:
             return {"success": False, "message": "None of the selected clients have MIS files."}
+
+    # Prepare tmp directory for downloads
+    tmp_dir = os.path.join("app", "storage", "tmp", os.path.basename(batch_folder))
+    os.makedirs(tmp_dir, exist_ok=True)
 
     # -- 3. Initialise SES client ---------------------------------------------
     sender_email = settings.SES_SENDER_EMAIL
@@ -368,15 +459,16 @@ def send_client_mis_emails(batch_folder: str, clients: list = None, limit: int =
     total_sent  = 0
     failed      = 0
     errors      = []
+    sent_clients   = []   # list of {safe_name, client_name, email}
+    failed_clients = []   # list of {safe_name, client_name, email, reason}
 
-    for filename in files:
+    for safe_name in all_safe_names:
         # Respect limit
         if limit is not None and total_sent >= limit:
             break
 
-        # Derive client name from filename: PERKINS_INDIA.xlsx → PERKINS INDIA
-        client_key  = filename.replace(".xlsx", "")          # PERKINS_INDIA
-        client_name = client_key.replace("_", " ").strip()   # PERKINS INDIA
+        # Derive display client name: PERKINS_INDIA → PERKINS INDIA
+        client_name = safe_name.replace("_", " ").strip()
 
         # Look up email — try exact match first, then uppercase
         recipient = email_map.get(client_name) or email_map.get(client_name.upper())
@@ -384,9 +476,26 @@ def send_client_mis_emails(batch_folder: str, clients: list = None, limit: int =
             print(f"⚠️  No email found for client '{client_name}' — skipping.")
             continue
 
-        file_path = os.path.join(client_folder, filename)
-        if not os.path.exists(file_path):
-            print(f"⚠️  File not found: {file_path} — skipping.")
+        # Determine which Cloudinary URL to use
+        if file_type == "custom" and safe_name in cloud_custom:
+            cloud_url = cloud_custom[safe_name]["url"]
+        elif safe_name in cloud_generated:
+            cloud_url = cloud_generated[safe_name]["url"]
+        else:
+            print(f"⚠️  No Cloudinary URL for '{client_name}' — skipping.")
+            continue
+
+        # Download from Cloudinary to temp file
+        filename = f"{safe_name}.xlsx"
+        file_path = os.path.join(tmp_dir, filename)
+        try:
+            download_from_cloudinary(cloud_url, file_path)
+        except Exception as e:
+            failed += 1
+            error_msg = f"Cloudinary download failed: {e}"
+            errors.append({"client": client_name, "email": recipient, "reason": error_msg})
+            _log(client_name, recipient, "Failed", error_msg)
+            print(f"❌ {client_name}: {error_msg}")
             continue
 
         # Build MIME message
@@ -416,14 +525,30 @@ def send_client_mis_emails(batch_folder: str, clients: list = None, limit: int =
                 RawMessage={"Data": msg.as_string()},
             )
             total_sent += 1
+            sent_clients.append({"safe_name": safe_name, "client_name": client_name, "email": recipient})
             _log(client_name, recipient, "Sent")
             print(f"✅ Sent MIS to {client_name} <{recipient}>")
         except Exception as e:
             failed += 1
             error_msg = str(e)
             errors.append({"client": client_name, "email": recipient, "reason": error_msg})
+            failed_clients.append({"safe_name": safe_name, "client_name": client_name, "email": recipient, "reason": error_msg})
             _log(client_name, recipient, "Failed", error_msg)
             print(f"❌ Failed to send to {client_name}: {error_msg}")
+        finally:
+            # Delete temp download immediately after sending
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception:
+                    pass
+
+    # Clean up tmp dir for this batch
+    try:
+        if os.path.exists(tmp_dir) and not os.listdir(tmp_dir):
+            os.rmdir(tmp_dir)
+    except Exception:
+        pass
 
     # -- 6. Return summary ----------------------------------------------------
     return {
@@ -431,6 +556,8 @@ def send_client_mis_emails(batch_folder: str, clients: list = None, limit: int =
         "total_sent": total_sent,
         "failed": failed,
         "errors": errors,
+        "sent_clients": sent_clients,
+        "failed_clients": failed_clients,
     }
 
 

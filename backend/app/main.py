@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+import os
+load_dotenv()  # must be first — loads .env before any module reads os.getenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import APP_NAME
@@ -6,7 +10,6 @@ from app.auth.auth_routes import router as auth_router
 from app.admin.admin_routes import router as admin_router
 from app.services.aws_ses import validate_aws_credentials
 from app.database import connect_to_mongo, close_mongo_connection
-import os
 
 app = FastAPI(title=APP_NAME, version="1.0")
 

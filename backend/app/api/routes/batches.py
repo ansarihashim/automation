@@ -1,105 +1,132 @@
+"""
+Batch routes — all data served from MongoDB for full persistence.
+
+GET /api/batches/           → list all batches (summary, no clients array)
+GET /api/batches/recent     → last 5 batches (summary)
+GET /api/batches/{batch_id} → full batch details including clients
+GET /api/batches/{batch_id}/clients → client list (kept for backward compat)
+"""
+
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import os
 import json
+
+from app.services.batch_mongo_service import (
+    get_all_batches,
+    get_recent_batches,
+    get_batch_by_id,
+)
 from app.services.batch_service import BatchService
 from app.auth.dependencies import require_read_access
 from app.models.user_model import CurrentUser
 
 router = APIRouter()
-batch_service = BatchService()
+_batch_service = BatchService()
 STORAGE_DIR = "app/storage/batches"
+
+
+# ---------------------------------------------------------------------------
+# MongoDB-backed list / detail endpoints
+# NOTE: /recent MUST be declared before /{batch_id} so it is not swallowed.
+# ---------------------------------------------------------------------------
+
+@router.get("/recent")
+async def list_recent_batches(current_user: CurrentUser = Depends(require_read_access)):
+    """Return last 5 batches (summary, no clients). Served from MongoDB."""
+    return await get_recent_batches(5)
+
+
+@router.get("/")
+async def list_batches(current_user: CurrentUser = Depends(require_read_access)):
+    """List all batches sorted newest first. Served from MongoDB."""
+    return await get_all_batches()
+
+
+@router.get("/{batch_id}")
+async def get_batch(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
+    """
+    Full batch document including clients array.
+    Served from MongoDB; falls back to local meta.json for legacy batches.
+    """
+    batch = await get_batch_by_id(batch_id)
+    if batch:
+        return batch
+
+    # Fallback: local meta.json (pre-MongoDB batches)
+    meta_path = os.path.join(STORAGE_DIR, batch_id, "meta.json")
+    if not os.path.exists(meta_path):
+        raise HTTPException(status_code=404, detail=f"Batch '{batch_id}' not found.")
+    try:
+        with open(meta_path, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 @router.get("/{batch_id}/clients")
 async def get_batch_clients(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
     """
-    Return list of clients for a batch with their email and file name.
-    GET /api/batches/{batch_id}/clients
+    Client list for a batch.
+    Prefers MongoDB data; falls back to local folder for legacy batches.
     """
-    batch_folder = os.path.join(STORAGE_DIR, batch_id)
-    if not os.path.exists(batch_folder):
-        raise HTTPException(status_code=404, detail=f"Batch '{batch_id}' not found.")
+    batch = await get_batch_by_id(batch_id)
+    if batch and batch.get("clients"):
+        return batch["clients"]
 
+    # Legacy fallback
+    batch_folder = os.path.join(STORAGE_DIR, batch_id)
     mapping_path = os.path.join(batch_folder, "client_email_map.json")
     if not os.path.exists(mapping_path):
-        raise HTTPException(status_code=404, detail="client_email_map.json not found.")
+        raise HTTPException(status_code=404, detail=f"Batch '{batch_id}' not found.")
 
     with open(mapping_path, "r") as f:
         email_map: dict = json.load(f)
 
     client_folder = os.path.join(batch_folder, "client_files")
     files = (
-        [f for f in os.listdir(client_folder) if f.endswith(".xlsx")]
+        [fi for fi in os.listdir(client_folder) if fi.endswith(".xlsx")]
         if os.path.exists(client_folder) else []
     )
-
     result = []
     for filename in sorted(files):
         client_key  = filename.replace(".xlsx", "")
         client_name = client_key.replace("_", " ").strip()
         email = email_map.get(client_name) or email_map.get(client_name.upper(), "")
-        result.append({
-            "client_name": client_name,
-            "email": email,
-            "file_name": filename,
-        })
-
+        result.append({"client_name": client_name, "email": email, "file_name": filename})
     return result
 
 
-@router.get("/")
-async def list_batches(current_user: CurrentUser = Depends(require_read_access)):
-    """List all batches with simplified stats"""
-    return batch_service.list_batches()
-
-@router.get("/{batch_id}")
-async def get_batch(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
-    """Get full batch data by ID"""
-    try:
-        return batch_service.get_batch(batch_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/{batch_id}/files")
-async def get_batch_files(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
-    """Get file paths for a batch"""
-    try:
-        files = batch_service.get_batch_files(batch_id)
-        # Check which files exist
-        return {
-            "batch_id": batch_id,
-            "files": {
-                "master": os.path.exists(files["master"]),
-                "mother": os.path.exists(files["mother"]),
-                "summary": os.path.exists(files["summary"]),
-                "email_log": os.path.exists(files["email_log"])
-            }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/{batch_id}/download/{file_type}")
-async def download_batch_file(batch_id: str, file_type: str, current_user: CurrentUser = Depends(require_read_access)):
-    """
-    Download a specific file from a batch.
-    file_type: master | email | processed | mother
-    """
+async def download_batch_file(
+    batch_id: str,
+    file_type: str,
+    current_user: CurrentUser = Depends(require_read_access),
+):
+    """Download master/email/mother file. Mother redirects to Cloudinary URL."""
     ALLOWED = {"master", "email", "processed", "mother"}
     if file_type not in ALLOWED:
-        raise HTTPException(status_code=400, detail=f"Invalid file_type. Choose from: {', '.join(ALLOWED)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file_type. Choose from: {', '.join(ALLOWED)}",
+        )
+
+    # For mother file, redirect to Cloudinary if available
+    if file_type == "mother":
+        batch = await get_batch_by_id(batch_id)
+        if batch and batch.get("mother_file_url"):
+            return RedirectResponse(url=batch["mother_file_url"], status_code=302)
 
     try:
-        files = batch_service.get_batch_files(batch_id)
-        file_path = files[file_type]
-
-        print(f"Looking for {file_type} at: {file_path}")
-
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail=f"{file_type} file not found for batch '{batch_id}'")
-
+        files = _batch_service.get_batch_files(batch_id)
+        file_path = files.get(file_type, "")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"{file_type} file not found for batch '{batch_id}'",
+            )
         filename_map = {
             "master":    f"{batch_id}_master.xlsx",
             "email":     f"{batch_id}_email_mapping.xlsx",
@@ -115,3 +142,4 @@ async def download_batch_file(batch_id: str, file_type: str, current_user: Curre
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
