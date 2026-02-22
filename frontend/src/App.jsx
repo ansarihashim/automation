@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/LoginPage';
+import PendingPage from './pages/PendingPage';
 import UploadPage from './pages/UploadPage';
 import FilesPage from './pages/FilesPage';
 import EmailPage from './pages/EmailPage';
@@ -17,6 +18,7 @@ function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/pending" element={<PendingPage />} />
 
           {/* Protected — all logged-in users */}
           <Route

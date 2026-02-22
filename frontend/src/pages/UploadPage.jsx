@@ -1,6 +1,7 @@
 ﻿import React, { useState, useRef } from 'react';
 import { CloudUpload, CheckCircle, FileText, X, AlertCircle, Send } from 'lucide-react';
 import api from '../services/api';
+import WriteAccess from '../components/WriteAccess';
 
 // ---------------------------------------------------------------------------
 // Reusable drop zone
@@ -364,13 +365,17 @@ const UploadPage = () => {
                         </div>
                     )}
 
-                    <button onClick={handleSubmit} disabled={!canSubmit}
-                        className={`w-full py-3 rounded-lg font-semibold text-white text-sm transition-all duration-150
-                            ${canSubmit
-                                ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-sm hover:shadow-md'
-                                : 'bg-gray-300 cursor-not-allowed'}`}>
-                        {loading ? 'Processing...' : 'Process'}
-                    </button>
+                    <WriteAccess fallback={
+                        <p className="text-sm text-gray-400 italic text-center py-2">Read-only access — uploading is disabled.</p>
+                    }>
+                        <button onClick={handleSubmit} disabled={!canSubmit}
+                            className={`w-full py-3 rounded-lg font-semibold text-white text-sm transition-all duration-150
+                                ${canSubmit
+                                    ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-sm hover:shadow-md'
+                                    : 'bg-gray-300 cursor-not-allowed'}`}>
+                            {loading ? 'Processing...' : 'Process'}
+                        </button>
+                    </WriteAccess>
                 </div>
             )}
 

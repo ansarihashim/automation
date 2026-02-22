@@ -3,7 +3,7 @@ import {
     Users, Clock, CheckCircle, XCircle, Trash2, ShieldCheck,
     Loader2, RefreshCw, AlertCircle, ChevronDown
 } from 'lucide-react';
-import { getPendingUsers, getAllUsers, approveUser, rejectUser, deleteUser } from '../services/api';
+import { getPendingUsers, getAllUsers, approveUser, rejectUser, deleteUser } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
 
 const ROLE_OPTIONS = ['user', 'admin'];

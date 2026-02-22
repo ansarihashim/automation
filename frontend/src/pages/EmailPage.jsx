@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Mail, Send, Eye, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import api from '../services/api';
 import EmailPreviewModal from '../components/EmailPreviewModal';
+import WriteAccess from '../components/WriteAccess';
 
 const EmailPage = () => {
     const [searchParams] = useSearchParams();
@@ -195,32 +196,36 @@ const EmailPage = () => {
                     <div className="flex flex-wrap gap-4 items-center justify-between">
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 mb-2">Send Controls</h3>
-                            <div className="flex flex-wrap gap-2">
-                                {sendLimits.map(limit => (
+                            <WriteAccess fallback={
+                                <p className="text-sm text-gray-400 italic">Read-only access — email sending is disabled.</p>
+                            }>
+                                <div className="flex flex-wrap gap-2">
+                                    {sendLimits.map(limit => (
+                                        <button
+                                            key={limit}
+                                            onClick={() => handleSendEmails(limit)}
+                                            disabled={sending || stats.remaining === 0}
+                                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            Send {limit}
+                                        </button>
+                                    ))}
                                     <button
-                                        key={limit}
-                                        onClick={() => handleSendEmails(limit)}
+                                        onClick={handleCustomSend}
                                         disabled={sending || stats.remaining === 0}
-                                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                                     >
-                                        Send {limit}
+                                        Custom Amount
                                     </button>
-                                ))}
-                                <button
-                                    onClick={handleCustomSend}
-                                    disabled={sending || stats.remaining === 0}
-                                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    Custom Amount
-                                </button>
-                                <button
-                                    onClick={() => handleSendEmails('all')}
-                                    disabled={sending || stats.remaining === 0}
-                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold"
-                                >
-                                    Send All ({stats.remaining})
-                                </button>
-                            </div>
+                                    <button
+                                        onClick={() => handleSendEmails('all')}
+                                        disabled={sending || stats.remaining === 0}
+                                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold"
+                                    >
+                                        Send All ({stats.remaining})
+                                    </button>
+                                </div>
+                            </WriteAccess>
                         </div>
                         <div>
                             <button

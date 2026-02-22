@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Mail, Lock, Loader2, AlertCircle, CheckCircle, Info } from 'lucide-react';
-import { loginOrRegister } from '../services/api';
+import { Zap, Mail, Lock, Loader2, AlertCircle, Info } from 'lucide-react';
+import { login as apiLogin } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -24,15 +24,22 @@ export default function LoginPage() {
         }
         setLoading(true);
         try {
-            const data = await loginOrRegister(email.trim().toLowerCase(), password);
+            const data = await apiLogin(email.trim().toLowerCase(), password);
 
-            // Just a message (pending / rejected / account created)
+            // Server returned a plain message (new account created / rejected)
             if (data.message) {
+                const msg = data.message.toLowerCase();
+                if (msg.includes('pending')) {
+                    // Save a minimal pending marker so PendingPage can show
+                    localStorage.setItem('pendingEmail', email.trim().toLowerCase());
+                    navigate('/pending', { replace: true });
+                    return;
+                }
                 setInfoMsg(data.message);
                 return;
             }
 
-            // Full token response
+            // Full token response — active user
             login(data.access_token, data.user);
             navigate('/upload', { replace: true });
         } catch (err) {
