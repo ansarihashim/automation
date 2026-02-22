@@ -4,7 +4,7 @@ import axios from 'axios';
 // Axios instance
 // ---------------------------------------------------------------------------
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+    baseURL: `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`,
     timeout: 30000,
     headers: { 'Content-Type': 'application/json' },
 });
@@ -116,7 +116,7 @@ export const getBatchClients = async (batchId) => {
 
 export const downloadBatchFile = (batchId, fileType) => {
     const token = localStorage.getItem('token');
-    const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+    const base = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`;
     window.open(`${base}/batches/${batchId}/download/${fileType}?token=${token}`, '_blank');
 };
 
