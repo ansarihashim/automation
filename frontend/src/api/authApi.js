@@ -1,6 +1,6 @@
 /**
  * Auth-specific API calls.
- * Uses its own axios instance that reads the token from localStorage.
+ * Uses its own axios instance that reads the token from sessionStorage.
  */
 import axios from 'axios';
 
@@ -12,7 +12,7 @@ const authApi = axios.create({
 
 // Attach JWT on every request
 authApi.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
 });

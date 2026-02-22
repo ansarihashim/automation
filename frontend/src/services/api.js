@@ -11,7 +11,7 @@ const api = axios.create({
 
 // Attach JWT on every request
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
 });
@@ -21,8 +21,8 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('user');
             window.location.href = '/login';
         }
         if (error.response) {
@@ -115,7 +115,7 @@ export const getBatchClients = async (batchId) => {
 };
 
 export const downloadBatchFile = (batchId, fileType) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     const base = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`;
     window.open(`${base}/batches/${batchId}/download/${fileType}?token=${token}`, '_blank');
 };

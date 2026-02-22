@@ -31,7 +31,7 @@ export default function LoginPage() {
                 const msg = data.message.toLowerCase();
                 if (msg.includes('pending')) {
                     // Save a minimal pending marker so PendingPage can show
-                    localStorage.setItem('pendingEmail', email.trim().toLowerCase());
+                    sessionStorage.setItem('pendingEmail', email.trim().toLowerCase());
                     navigate('/pending', { replace: true });
                     return;
                 }

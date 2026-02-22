@@ -1,32 +1,47 @@
 /**
  * AuthContext — global auth state.
- * Stores token + user in localStorage for persistence across page reloads.
+ * Stores token + user in sessionStorage so the session ends when the tab/browser is closed.
  */
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getCurrentUser } from '../api/authApi';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-    const [token, setToken] = useState(() => localStorage.getItem('token'));
+    const [token, setToken] = useState(() => sessionStorage.getItem('token'));
     const [user, setUser] = useState(() => {
         try {
-            const raw = localStorage.getItem('user');
+            const raw = sessionStorage.getItem('user');
             return raw ? JSON.parse(raw) : null;
         } catch {
             return null;
         }
     });
 
+    // On app load, validate the stored token against /auth/me.
+    // If the token is expired or invalid, force logout.
+    useEffect(() => {
+        const storedToken = sessionStorage.getItem('token');
+        if (!storedToken) return;
+        getCurrentUser()
+            .catch(() => {
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('user');
+                setToken(null);
+                setUser(null);
+            });
+    }, []);
+
     const login = (accessToken, userData) => {
-        localStorage.setItem('token', accessToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        sessionStorage.setItem('token', accessToken);
+        sessionStorage.setItem('user', JSON.stringify(userData));
         setToken(accessToken);
         setUser(userData);
     };
 
     const logout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
         setToken(null);
         setUser(null);
     };
