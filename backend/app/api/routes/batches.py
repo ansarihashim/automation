@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 import os
 import json
 from app.services.batch_service import BatchService
+from app.auth.dependencies import require_read_access
+from app.models.user_model import CurrentUser
 
 router = APIRouter()
 batch_service = BatchService()
@@ -10,7 +12,7 @@ STORAGE_DIR = "app/storage/batches"
 
 
 @router.get("/{batch_id}/clients")
-async def get_batch_clients(batch_id: str):
+async def get_batch_clients(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
     """
     Return list of clients for a batch with their email and file name.
     GET /api/batches/{batch_id}/clients
@@ -47,12 +49,12 @@ async def get_batch_clients(batch_id: str):
 
 
 @router.get("/")
-async def list_batches():
+async def list_batches(current_user: CurrentUser = Depends(require_read_access)):
     """List all batches with simplified stats"""
     return batch_service.list_batches()
 
 @router.get("/{batch_id}")
-async def get_batch(batch_id: str):
+async def get_batch(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
     """Get full batch data by ID"""
     try:
         return batch_service.get_batch(batch_id)
@@ -62,7 +64,7 @@ async def get_batch(batch_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{batch_id}/files")
-async def get_batch_files(batch_id: str):
+async def get_batch_files(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
     """Get file paths for a batch"""
     try:
         files = batch_service.get_batch_files(batch_id)
@@ -80,18 +82,20 @@ async def get_batch_files(batch_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{batch_id}/download/{file_type}")
-async def download_batch_file(batch_id: str, file_type: str):
+async def download_batch_file(batch_id: str, file_type: str, current_user: CurrentUser = Depends(require_read_access)):
     """
     Download a specific file from a batch.
-    file_type: master | email | processed
+    file_type: master | email | processed | mother
     """
-    ALLOWED = {"master", "email", "processed"}
+    ALLOWED = {"master", "email", "processed", "mother"}
     if file_type not in ALLOWED:
         raise HTTPException(status_code=400, detail=f"Invalid file_type. Choose from: {', '.join(ALLOWED)}")
 
     try:
         files = batch_service.get_batch_files(batch_id)
         file_path = files[file_type]
+
+        print(f"Looking for {file_type} at: {file_path}")
 
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail=f"{file_type} file not found for batch '{batch_id}'")
@@ -100,6 +104,7 @@ async def download_batch_file(batch_id: str, file_type: str):
             "master":    f"{batch_id}_master.xlsx",
             "email":     f"{batch_id}_email_mapping.xlsx",
             "processed": f"{batch_id}_processed_master.xlsx",
+            "mother":    f"{batch_id}_mother.xlsx",
         }
         return FileResponse(
             path=file_path,

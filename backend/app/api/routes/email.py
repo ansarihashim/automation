@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 import os
 from app.services.file_service import load_batch_by_id, save_batch
 from app.services.email_service import AmazonSESEmailService
 from app.services.processing_service import send_client_mis_emails
 from app.models.schemas import EmailSendRequest, EmailPreviewRequest, MISEmailRequest
+from app.auth.dependencies import require_read_access, require_write_access
+from app.models.user_model import CurrentUser
 
 router = APIRouter()
 email_service = AmazonSESEmailService()
@@ -12,7 +14,7 @@ STORAGE_DIR = "app/storage/batches"
 
 
 @router.post("/send-mis")
-async def send_mis_emails(request: MISEmailRequest):
+async def send_mis_emails(request: MISEmailRequest, current_user: CurrentUser = Depends(require_write_access)):
     """
     Phase-3: Send MIS Excel files to each client via AWS SES.
     POST /api/email/send-mis
@@ -43,7 +45,7 @@ async def send_mis_emails(request: MISEmailRequest):
     }
 
 @router.post("/send")
-async def send_emails(request: EmailSendRequest):
+async def send_emails(request: EmailSendRequest, current_user: CurrentUser = Depends(require_write_access)):
     """Send emails in controlled batches (1, 5, 10, 20, 50, custom)"""
     try:
         batch_data = load_batch_by_id(request.batch_id)
@@ -60,7 +62,7 @@ async def send_emails(request: EmailSendRequest):
         raise HTTPException(status_code=500, detail=f"Email sending failed: {str(e)}")
 
 @router.post("/preview")
-async def preview_email(request: EmailPreviewRequest):
+async def preview_email(request: EmailPreviewRequest, current_user: CurrentUser = Depends(require_read_access)):
     """Preview email content for a specific row"""
     try:
         batch_data = load_batch_by_id(request.batch_id)
@@ -95,7 +97,7 @@ async def preview_email(request: EmailPreviewRequest):
         raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
 
 @router.get("/preview-first/{batch_id}")
-async def preview_first_email(batch_id: str):
+async def preview_first_email(batch_id: str, current_user: CurrentUser = Depends(require_read_access)):
     """Preview the first email in a batch"""
     try:
         batch_data = load_batch_by_id(batch_id)
@@ -123,7 +125,7 @@ async def preview_first_email(batch_id: str):
         raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
 
 @router.get("/logs")
-async def get_email_logs():
+async def get_email_logs(current_user: CurrentUser = Depends(require_read_access)):
     """Get email sending logs"""
     log_file = "app/storage/logs/email_logs.txt"
     logs = []

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 import shutil
 import os
 from datetime import datetime
@@ -7,6 +7,8 @@ from app.services.processing_service import (
     process_master_with_email_validation,
     generate_client_mis_files,
 )
+from app.auth.dependencies import require_write_access
+from app.models.user_model import CurrentUser
 
 router = APIRouter()
 
@@ -25,6 +27,7 @@ def _save_upload(upload: UploadFile, dest: str) -> None:
 async def upload_master(
     master_file: UploadFile = File(...),
     email_file: UploadFile = File(...),
+    current_user: CurrentUser = Depends(require_write_access),
 ):
     """
     Phase-1 upload endpoint.

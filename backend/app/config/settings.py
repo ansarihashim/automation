@@ -13,3 +13,11 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 SES_SENDER_EMAIL = os.getenv("SES_SENDER_EMAIL")
 SES_SENDER_NAME = os.getenv("SES_SENDER_NAME", "Kiirus Xpress")
+
+# MongoDB Configuration
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+
+# JWT Configuration
+JWT_SECRET = os.getenv("JWT_SECRET", "change-this-secret-in-production")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))

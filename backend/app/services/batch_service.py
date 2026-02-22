@@ -53,5 +53,6 @@ class BatchService:
             "master":    os.path.join(batch_dir, "raw", "master.xlsx"),
             "email":     os.path.join(batch_dir, "raw", "email_mapping.xlsx"),
             "processed": os.path.join(batch_dir, "processed", "processed_master.xlsx"),
+            "mother":    os.path.join(batch_dir, "processed", "mother.xlsx"),
             "meta":      os.path.join(batch_dir, "meta.json"),
         }

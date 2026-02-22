@@ -1,5 +1,5 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { CloudUpload, CheckCircle, FileText, X, AlertCircle, Send, ChevronDown } from 'lucide-react';
+﻿import React, { useState, useRef } from 'react';
+import { CloudUpload, CheckCircle, FileText, X, AlertCircle, Send } from 'lucide-react';
 import api from '../services/api';
 
 // ---------------------------------------------------------------------------
@@ -301,18 +301,6 @@ const UploadPage = () => {
     const [loading, setLoading] = useState(false);
     const [batchId, setBatchId] = useState(null);
     const [error, setError] = useState('');
-    const [batches, setBatches] = useState([]);
-
-    const fetchBatches = useCallback(async () => {
-        try {
-            const res = await api.get('/batches');
-            setBatches(res.data);
-        } catch {
-            // silently ignore — batch list is supplementary
-        }
-    }, []);
-
-    useEffect(() => { fetchBatches(); }, [fetchBatches]);
 
     const canSubmit = rawFile && emailFile && !loading;
 
@@ -328,7 +316,6 @@ const UploadPage = () => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             setBatchId(res.data.batch_id);
-            await fetchBatches();
         } catch (e) {
             const detail = e.response?.data?.detail;
             setError(Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : (detail || e.message));
@@ -387,51 +374,7 @@ const UploadPage = () => {
                 </div>
             )}
 
-            {/* Recent Batches */}
-            {batches.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-100">
-                        <h2 className="text-sm font-semibold text-gray-800">Recent Batches</h2>
-                    </div>
-                    <ul className="divide-y divide-gray-100">
-                    {batches.slice(0, 10).map((b) => {
-                            const dateStr = b.created_at
-                                ? new Date(b.created_at).toLocaleString('en-IN', {
-                                    day: '2-digit', month: 'short', year: 'numeric',
-                                    hour: '2-digit', minute: '2-digit',
-                                  })
-                                : '—';
-                            const BASE = 'http://localhost:8000/api/batches';
-                            const dlUrl = (type) => `${BASE}/${b.batch_id}/download/${type}`;
-                            return (
-                                <li key={b.batch_id} className="px-4 py-3 space-y-1.5">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-sm font-mono text-gray-700">{b.batch_id}</span>
-                                        <span className="text-xs text-gray-400">{dateStr}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs text-gray-500">
-                                            {b.total_rows != null ? `${b.total_rows} rows` : ''}{b.total_rows != null && b.total_clients != null ? ' · ' : ''}{b.total_clients != null ? `${b.total_clients} clients` : ''}
-                                        </span>
-                                        <div className="ml-auto flex items-center gap-2">
-                                            {[
-                                                { type: 'master',    label: 'Master' },
-                                                { type: 'email',     label: 'Email' },
-                                                { type: 'processed', label: 'Processed' },
-                                            ].map(({ type, label }) => (
-                                                <a key={type} href={dlUrl(type)} download
-                                                    className="text-xs px-2.5 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors">
-                                                    ↓ {label}
-                                                </a>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                </div>
-            )}
+
         </div>
     );
 };

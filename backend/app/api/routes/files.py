@@ -1,13 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional
 from app.services.file_service import load_batch_by_id
+from app.auth.dependencies import require_read_access
+from app.models.user_model import CurrentUser
 
 router = APIRouter()
 
 @router.get("/{batch_id}")
 async def get_batch_customers(
     batch_id: str,
-    status: Optional[str] = Query(None, description="Filter by status: NotSent, Sent, Failed")
+    status: Optional[str] = Query(None, description="Filter by status: NotSent, Sent, Failed"),
+    current_user: CurrentUser = Depends(require_read_access),
 ):
     """Get rows for a specific batch, optionally filtered by status"""
     try:

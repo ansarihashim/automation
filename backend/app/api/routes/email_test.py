@@ -1,12 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.services.email_service import AmazonSESEmailService
 from app.config import settings
+from app.auth.dependencies import require_admin
+from app.models.user_model import CurrentUser
 
 router = APIRouter()
 email_service = AmazonSESEmailService()
 
 @router.get("/test")
-async def test_ses_connection():
+async def test_ses_connection(current_user: CurrentUser = Depends(require_admin)):
     """Test SES connection and configuration"""
     try:
         # Print configuration for debugging
