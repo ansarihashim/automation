@@ -473,7 +473,20 @@ export default function ClientEmailsPage() {
             setBulkBusy(false);
         }
     };
-
+    // ── Resolve missing request ─────────────────────────────────────────
+    const resolveRequest = async (clientName) => {
+        try {
+            await api.post('/admin/clients/resolve-missing', null, {
+                params: { client_name: clientName },
+            });
+            fetchMissingRequests();
+        } catch (err) {
+            showToast(
+                err?.response?.data?.detail ?? 'Failed to resolve request.',
+                'error'
+            );
+        }
+    };
     // ── Delete ─────────────────────────────────────────────────────────────
     const handleDelete = async () => {
         setDeleteBusy(true);
@@ -513,17 +526,25 @@ export default function ClientEmailsPage() {
                     <div className="font-semibold text-yellow-300 text-sm mb-2">
                         ⚠️ Missing email requests ({missingRequests.length})
                     </div>
-                    <ul className="text-sm text-yellow-400 list-disc ml-5 space-y-0.5">
+                    <ul className="text-sm text-yellow-400 space-y-1.5">
                         {missingRequests.map((r, i) => (
-                            <li key={i}>
-                                <span className="font-medium">{r.client_name}</span>
-                                {' '}— requested by{' '}
-                                <span className="font-medium">{r.requested_by}</span>
+                            <li key={i} className="flex items-center justify-between gap-3">
+                                <span>
+                                    <span className="font-medium">{r.client_name}</span>
+                                    {' '}— requested by{' '}
+                                    <span className="font-medium">{r.requested_by}</span>
+                                </span>
+                                <button
+                                    onClick={() => resolveRequest(r.client_name)}
+                                    className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-yellow-500/20 text-yellow-300 border border-yellow-600 hover:bg-yellow-500/40 transition-colors font-semibold"
+                                >
+                                    Mark as Done
+                                </button>
                             </li>
                         ))}
                     </ul>
                     <p className="text-xs text-yellow-500 mt-2">
-                        Add emails for these clients to resolve requests automatically.
+                        Add emails for these clients to resolve requests automatically, or click “Mark as Done” to dismiss.
                     </p>
                 </div>
             )}

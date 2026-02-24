@@ -14,6 +14,7 @@ DELETE /{client_name}       Remove a client record
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -201,6 +202,42 @@ async def get_missing_requests(
         {"_id": 0, "client_name": 1, "requested_by": 1, "created_at": 1},
     ).sort("created_at", -1)
     return await requests_cursor.to_list(length=100)
+
+
+# ---------------------------------------------------------------------------
+# POST /resolve-missing  — manually mark a request as resolved
+# ---------------------------------------------------------------------------
+
+
+@router.post("/resolve-missing", status_code=status.HTTP_200_OK)
+async def resolve_missing_request(
+    client_name: str,
+    admin: CurrentUser = Depends(require_admin),
+):
+    """
+    Mark all unresolved missing-client requests for a given client as resolved.
+
+    POST /api/admin/clients/resolve-missing?client_name=AJANTA+PHARMA
+
+    Does NOT delete data — only sets resolved=True and records resolved_at.
+    """
+    norm = normalize_client_name(client_name)
+    if not norm:
+        raise HTTPException(status_code=400, detail="client_name must not be empty")
+
+    db = get_db()
+    result = await db.missing_client_requests.update_many(
+        {"client_name": norm, "resolved": False},
+        {"$set": {"resolved": True, "resolved_at": datetime.now(timezone.utc)}},
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No unresolved request found for '{norm}'",
+        )
+
+    return {"message": f"'{norm}' marked as resolved", "updated": result.modified_count}
 
 
 # ---------------------------------------------------------------------------
