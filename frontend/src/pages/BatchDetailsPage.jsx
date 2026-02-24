@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, CheckCircle, Clock, XCircle, FileText, ExternalLink,
-    Send, Users, Calendar, Database, RefreshCw, Upload,
+    Send, Users, Calendar, Database, RefreshCw, Upload, RotateCcw,
 } from 'lucide-react';
 import api from '../services/api';
 import MISClientModal from '../components/MISClientModal';
@@ -67,6 +67,10 @@ const BatchDetailsPage = () => {
 
     const [modalClient, setModalClient] = useState(null);
 
+    // ── Per-client retry state ───────────────────────────────────────────────
+    // Tracks which client names are currently mid-retry so we can show a spinner
+    const [retrying, setRetrying] = useState(new Set());
+
     // ── Load data ────────────────────────────────────────────────────────────
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -102,6 +106,30 @@ const BatchDetailsPage = () => {
     const toggleAll = () => {
         if (selected.size === clients.length) setSelected(new Set());
         else setSelected(new Set(clients.map(c => c.client_name)));
+    };
+
+    // ── Retry single failed client ────────────────────────────────────────────
+    const retryClient = async (clientName) => {
+        setRetrying(prev => new Set(prev).add(clientName));
+        try {
+            await api.post('/email/retry-client', {
+                batch_id:    batch_id,
+                client_name: clientName,
+            });
+            await loadData();
+        } catch (e) {
+            alert(
+                e.response?.data?.detail ||
+                'Retry failed. Check email configuration.'
+            );
+            await loadData(); // still refresh so status reflects any update
+        } finally {
+            setRetrying(prev => {
+                const next = new Set(prev);
+                next.delete(clientName);
+                return next;
+            });
+        }
     };
 
     // ── Bulk send ────────────────────────────────────────────────────────────
@@ -264,11 +292,25 @@ const BatchDetailsPage = () => {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <button
-                                                onClick={() => setModalClient(client)}
-                                                className="text-xs px-3 py-1.5 bg-[#d4a017] text-black rounded-lg hover:bg-[#f2c94c] border border-transparent transition-colors font-semibold">
-                                                Manage
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => setModalClient(client)}
+                                                    className="text-xs px-3 py-1.5 bg-[#d4a017] text-black rounded-lg hover:bg-[#f2c94c] border border-transparent transition-colors font-semibold">
+                                                    Manage
+                                                </button>
+                                                {client.status === 'failed' && (
+                                                    <button
+                                                        onClick={() => retryClient(client.client_name)}
+                                                        disabled={retrying.has(client.client_name)}
+                                                        className="flex items-center gap-1 text-xs px-3 py-1.5 bg-red-900/40 text-red-300 border border-red-700 rounded-lg hover:bg-red-900/70 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title="Retry sending email">
+                                                        {retrying.has(client.client_name)
+                                                            ? <RefreshCw size={11} className="animate-spin" />
+                                                            : <RotateCcw size={11} />}
+                                                        Retry
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

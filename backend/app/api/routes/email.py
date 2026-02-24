@@ -51,6 +51,9 @@ class SendBatchRequest(BaseModel):
     clients:  Optional[List[str]] = None  # None â†’ all pending
     limit:    Optional[int]       = None  # None â†’ no cap
 
+class RetryClientRequest(BaseModel):
+    batch_id:    str
+    client_name: str
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -369,6 +372,83 @@ async def get_mis_clients(
         })
 
     return {"batch_id": batch_id, "clients": clients}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/email/retry-client  — resend email for a single failed client
+# ---------------------------------------------------------------------------
+
+@router.post("/retry-client")
+async def retry_client_email(
+    request: RetryClientRequest,
+    current_user: CurrentUser = Depends(require_write_access),
+):
+    """
+    Retry sending an MIS email for a specific client in a batch.
+    Useful when a client's email previously had status 'failed'.
+
+    Body:
+        {"batch_id": "batch_20260223_120000", "client_name": "AJANTA PHARMA"}
+    """
+    batch = await get_batch_by_id(request.batch_id)
+    if not batch:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Batch '{request.batch_id}' not found.",
+        )
+
+    norm_name = normalize_client_name(request.client_name)
+    client = next(
+        (c for c in batch.get("clients", [])
+         if normalize_client_name(c["client_name"]) == norm_name),
+        None,
+    )
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Client '{request.client_name}' not found in batch.",
+        )
+
+    file_url = _resolve_file_url(client, "generated")
+    if not file_url:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No file URL available for '{request.client_name}'.",
+        )
+
+    client_name = client["client_name"]
+    safe_name   = client.get("safe_name", client_name.replace(" ", "_"))
+    now_iso     = datetime.now(timezone.utc).isoformat()
+
+    result     = await send_mis_email(batch_id=request.batch_id, client_name=client_name, file_url=file_url)
+    status     = result["status"]
+    email_addr = result.get("email", "")
+    message_id = result.get("message_id")
+    error      = result.get("error")
+
+    try:
+        await update_client_email_result(
+            batch_id=request.batch_id, safe_name=safe_name, status=status, sent_at=now_iso,
+        )
+    except Exception as exc:
+        print(f"  ⚠️  Batch status update failed for '{client_name}': {exc}")
+
+    try:
+        await insert_email_log({
+            "batch_id": request.batch_id, "client_name": client_name,
+            "email": email_addr, "status": status,
+            "message_id": message_id, "error": error, "sent_at": now_iso,
+        })
+    except Exception as exc:
+        print(f"  ⚠️  Email log insert failed for '{client_name}': {exc}")
+
+    if status == "failed":
+        raise HTTPException(
+            status_code=500,
+            detail=error or f"Email delivery failed for '{client_name}'.",
+        )
+
+    return {"message": f"Email resent successfully for {client_name}", "status": status}
 
 
 # ---------------------------------------------------------------------------
