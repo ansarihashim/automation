@@ -57,17 +57,26 @@ async def send_mis_email(
     """
     db = get_db()
 
-    # ── Step 1: Fetch client email ──────────────────────────────────────────
+    # ── Step 1: Fetch client email(s) ───────────────────────────────────────
     client_doc = await db["clients"].find_one(
         {"client_name": client_name},
-        {"_id": 0, "email": 1},
+        {"_id": 0, "email": 1, "emails": 1},
     )
-    if not client_doc or not client_doc.get("email"):
+
+    # Backward compatibility: old docs have 'email' string; new docs have 'emails' list.
+    if client_doc:
+        emails: list[str] = client_doc.get("emails") or []
+        if not emails and client_doc.get("email"):
+            emails = [client_doc["email"]]
+    else:
+        emails = []
+
+    if not emails:
         msg = f"No email found in 'clients' collection for '{client_name}'"
         print(f"  ⚠️  {msg}")
         return {"status": "failed", "email": None, "message_id": None, "error": msg}
 
-    recipient_email: str = client_doc["email"]
+    primary_email: str = emails[0]
 
     # ── Step 2: Download Excel from Cloudinary (in-memory) ──────────────────
     try:
@@ -107,7 +116,7 @@ async def send_mis_email(
 
     msg = MIMEMultipart("mixed")
     msg["From"]    = sender_addr
-    msg["To"]      = recipient_email
+    msg["To"]      = ", ".join(emails)
     msg["CC"]      = ", ".join(_MIS_CC)
     msg["Subject"] = subject
 
@@ -132,7 +141,7 @@ async def send_mis_email(
     msg.attach(part)
 
     # ── Step 4+5: Send via SES send_raw_email ───────────────────────────────
-    all_destinations = [recipient_email] + _MIS_CC
+    all_destinations = emails + _MIS_CC
     try:
         ses = get_ses_client()
         response = await asyncio.get_event_loop().run_in_executor(
@@ -145,12 +154,13 @@ async def send_mis_email(
         )
         message_id = response.get("MessageId", "")
         print(
-            f"  ✅ Sent to {recipient_email} | "
+            f"  ✅ Sent to {emails} | "
             f"client: {client_name} | msg_id: {message_id}"
         )
         return {
             "status":     "sent",
-            "email":      recipient_email,
+            "email":      primary_email,
+            "emails":     emails,
             "message_id": message_id,
             "error":      None,
         }
@@ -161,7 +171,8 @@ async def send_mis_email(
         print(f"  ❌ {msg_err}")
         return {
             "status":     "failed",
-            "email":      recipient_email,
+            "email":      primary_email,
+            "emails":     emails,
             "message_id": None,
             "error":      msg_err,
         }
@@ -170,7 +181,8 @@ async def send_mis_email(
         print(f"  ❌ {msg_err}")
         return {
             "status":     "failed",
-            "email":      recipient_email,
+            "email":      primary_email,
+            "emails":     emails,
             "message_id": None,
             "error":      msg_err,
         }

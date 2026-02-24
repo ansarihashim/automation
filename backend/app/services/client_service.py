@@ -6,11 +6,12 @@ Emails are stored permanently so they only need to be entered once.
 
 Public API
 ----------
-    extract_clients_from_dataframe(df)         → list[str]
-    check_missing_client_emails(client_names)  → {"existing": {...}, "missing": [...]}
-    save_client_email(client_name, email)      → None
-    get_all_clients()                          → list[dict]
-    get_email_map_for_clients(client_names)    → dict[str, str]
+    extract_clients_from_dataframe(df)          → list[str]
+    check_missing_client_emails(client_names)   → {"existing": {...}, "missing": [...]}
+    save_client_emails(client_name, emails)     → None   (multi-email, max 5)
+    save_client_email(client_name, email)       → None   (legacy single-email alias)
+    get_all_clients()                           → list[dict]
+    get_email_map_for_clients(client_names)     → dict[str, str]  (first email, compat)
 """
 
 from __future__ import annotations
@@ -41,6 +42,21 @@ def _normalize_client(order_id_val) -> Optional[str]:
         return None
     s = str(order_id_val).strip().upper()
     return s if s else None
+
+
+def _migrate_doc(doc: dict) -> dict:
+    """
+    Ensure a client document always has an 'emails' list.
+
+    Old documents only have a single 'email' string field.
+    This helper promotes it to a 1-element list so all callers
+    can treat 'emails' as the canonical field without a DB migration.
+    The original 'email' field is never deleted.
+    """
+    if not doc.get("emails"):
+        legacy = doc.get("email")
+        doc["emails"] = [legacy] if legacy else []
+    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -102,11 +118,18 @@ async def check_missing_client_emails(client_names: list[str]) -> dict:
     db = get_db()
     cursor = db["clients"].find(
         {"client_name": {"$in": client_names}},
-        {"_id": 0, "client_name": 1, "email": 1},
+        {"_id": 0, "client_name": 1, "email": 1, "emails": 1},
     )
     docs = await cursor.to_list(length=None)
 
-    existing: dict[str, str] = {d["client_name"]: d["email"] for d in docs}
+    # Build existing map — a client counts as "existing" only if it has
+    # at least one valid email (handles old 'email' field transparently).
+    existing: dict[str, list[str]] = {}
+    for d in docs:
+        d = _migrate_doc(d)
+        if d["emails"]:
+            existing[d["client_name"]] = d["emails"]
+
     missing: list[str] = sorted(
         name for name in client_names if name not in existing
     )
@@ -114,27 +137,41 @@ async def check_missing_client_emails(client_names: list[str]) -> dict:
     return {"existing": existing, "missing": missing}
 
 
-async def save_client_email(client_name: str, email: str) -> None:
+async def save_client_emails(client_name: str, emails: list[str]) -> None:
     """
-    Upsert a client email into the 'clients' collection.
+    Upsert a client with a list of email addresses (max 5) into 'clients'.
 
     • New client  → inserts with created_at = now.
-    • Existing    → updates email + updated_at only.
+    • Existing    → updates emails + updated_at only.
 
     Parameters
     ----------
-    client_name : str   Will be stored uppercase.
-    email       : str   Client contact email.
+    client_name : str        Will be stored uppercase.
+    emails      : list[str]  1–5 validated, deduplicated email addresses.
     """
+    if not emails:
+        raise ValueError("At least one email address is required.")
+    if len(emails) > 5:
+        raise ValueError("A maximum of 5 email addresses is allowed per client.")
+
     db = get_db()
     now = datetime.now(timezone.utc)
     client_name = client_name.strip().upper()
+
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    clean: list[str] = []
+    for e in emails:
+        e = e.strip().lower()
+        if e and e not in seen:
+            seen.add(e)
+            clean.append(e)
 
     await db["clients"].update_one(
         {"client_name": client_name},
         {
             "$set": {
-                "email":      email.strip(),
+                "emails":     clean,
                 "updated_at": now,
             },
             "$setOnInsert": {
@@ -145,14 +182,21 @@ async def save_client_email(client_name: str, email: str) -> None:
     )
 
 
+async def save_client_email(client_name: str, email: str) -> None:
+    """Legacy single-email alias — wraps save_client_emails([email])."""
+    await save_client_emails(client_name, [email])
+
+
 async def get_all_clients() -> list[dict]:
     """
     Return all client documents sorted alphabetically by client_name.
+    Old documents with only 'email' are migrated on read to include 'emails'.
     _id is excluded from the result.
     """
     db = get_db()
     cursor = db["clients"].find({}, {"_id": 0}).sort("client_name", 1)
-    return await cursor.to_list(length=None)
+    docs = await cursor.to_list(length=None)
+    return [_migrate_doc(d) for d in docs]
 
 
 async def get_email_map_for_clients(client_names: list[str]) -> dict[str, str]:
@@ -168,10 +212,17 @@ async def get_email_map_for_clients(client_names: list[str]) -> dict[str, str]:
     db = get_db()
     cursor = db["clients"].find(
         {"client_name": {"$in": client_names}},
-        {"_id": 0, "client_name": 1, "email": 1},
+        {"_id": 0, "client_name": 1, "email": 1, "emails": 1},
     )
     docs = await cursor.to_list(length=None)
-    return {d["client_name"]: d["email"] for d in docs}
+
+    result: dict[str, str] = {}
+    for d in docs:
+        d = _migrate_doc(d)
+        # Return the first email as a string for backward compatibility
+        # (used by upload.py to store per-client metadata).
+        result[d["client_name"]] = d["emails"][0] if d["emails"] else ""
+    return result
 
 
 async def bulk_save_clients(clients: list[dict]) -> dict:
@@ -201,7 +252,12 @@ async def bulk_save_clients(clients: list[dict]) -> dict:
             {"client_name": c["client_name"]},
             {
                 "$set": {
-                    "email":      c["email"].strip(),
+                    # Support both legacy {email: str} and new {emails: list[str]} format
+                    "emails":     (
+                        [e.strip().lower() for e in c["emails"] if e.strip()]
+                        if c.get("emails")
+                        else ([c["email"].strip().lower()] if c.get("email") else [])
+                    ),
                     "updated_at": now,
                 },
                 "$setOnInsert": {

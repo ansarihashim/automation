@@ -38,26 +38,26 @@ from app.utils.cloudinary_service import upload_mis_file
 
 # Maps  output-column-name → MongoDB field name
 _COLUMN_MAP: dict[str, str] = {
-    "BOOKING DATE":     "manifest_date",
-    "LRN":              "lrn",
-    "C/NOR":            "order_id",    # Order reference (distinct from LRN)
-    "C/NEE":            "consignee_name",
-    "ORIGIN":           "origin",
-    "DESTINATION":      "destination",
-    "PIN CODE":         "pin_code",
-    "INVOICE NO":       "invoice_number",
-    "NO OF BOXES":      "no_of_boxes",  # post-processed (–1, clamp ≥ 0)
-    "STATUS":           "status",
-    "DATE OF DELIVERY": "delivered_date",
-    "REMARKS":          "remarks",
-    "Expected delivery": "expected_date",
+    "BOOKING DATE":      "manifest_date",
+    "LRN":               "lrn",
+    "CONSIGNOR NAME":    "order_id",       # Order reference (distinct from LRN)
+    "CONSIGNEE NAME":    "consignee_name",
+    "ORIGIN":            "origin",
+    "DESTINATION":       "destination",
+    "PIN CODE":          "pin_code",
+    "INVOICE NO":        "invoice_number",
+    "NO OF BOXES":       "no_of_boxes",   # post-processed (–1, clamp ≥ 0)
+    "STATUS":            "status",
+    "DATE OF DELIVERY":  "delivered_date",
+    "REMARKS":           "remarks",
+    "EXPECTED DELIVERY": "expected_date",
 }
 
 FINAL_COLUMNS: list[str] = [
     "BOOKING DATE",
     "LRN",
-    "C/NOR",
-    "C/NEE",
+    "CONSIGNOR NAME",
+    "CONSIGNEE NAME",
     "ORIGIN",
     "DESTINATION",
     "PIN CODE",
@@ -66,11 +66,11 @@ FINAL_COLUMNS: list[str] = [
     "STATUS",
     "DATE OF DELIVERY",
     "REMARKS",
-    "Expected delivery",
+    "EXPECTED DELIVERY",
 ]
 
 # Date columns that must be formatted as DD-MM-YYYY strings in the output
-_DATE_COLS = {"BOOKING DATE", "DATE OF DELIVERY", "Expected delivery"}
+_DATE_COLS = {"BOOKING DATE", "DATE OF DELIVERY", "EXPECTED DELIVERY"}
 
 # ---------------------------------------------------------------------------
 # Internal helpers

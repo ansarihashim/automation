@@ -87,8 +87,8 @@ export const getAdminClients = async ({ page = 1, limit = 500, search = '' } = {
     return response.data;
 };
 
-export const upsertAdminClient = async ({ client_name, email }) => {
-    const response = await api.post('/admin/clients', { client_name, email });
+export const upsertAdminClient = async ({ client_name, emails }) => {
+    const response = await api.post('/admin/clients', { client_name, emails });
     return response.data;
 };
 

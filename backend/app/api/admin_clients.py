@@ -25,7 +25,7 @@ from app.models.user_model import CurrentUser
 from app.services.client_service import (
     bulk_save_clients,
     delete_client,
-    save_client_email,
+    save_client_emails,
 )
 
 router = APIRouter()
@@ -37,10 +37,10 @@ router = APIRouter()
 
 
 class ClientEmailIn(BaseModel):
-    """Single client upsert payload."""
+    """Single client upsert payload (supports up to 5 email addresses)."""
 
     client_name: str
-    email: EmailStr
+    emails: List[EmailStr]
 
     @field_validator("client_name", mode="before")
     @classmethod
@@ -50,14 +50,31 @@ class ClientEmailIn(BaseModel):
             raise ValueError("client_name must not be empty")
         return v
 
-    @field_validator("email", mode="before")
+    @field_validator("emails", mode="before")
     @classmethod
-    def normalise_email(cls, v: str) -> str:
-        return str(v).strip().lower()
+    def validate_emails(cls, v) -> List[str]:
+        if isinstance(v, str):
+            # Accept a bare string for backward compatibility
+            v = [v]
+        if not v:
+            raise ValueError("At least one email is required")
+        # Normalise, deduplicate, validate count
+        seen: set = set()
+        clean: list = []
+        for e in v:
+            e = str(e).strip().lower()
+            if e and e not in seen:
+                seen.add(e)
+                clean.append(e)
+        if not clean:
+            raise ValueError("At least one valid email is required")
+        if len(clean) > 5:
+            raise ValueError("A maximum of 5 email addresses is allowed per client")
+        return clean
 
 
 class BulkClientEmailIn(BaseModel):
-    """Bulk upsert payload — list of client + email pairs."""
+    """Bulk upsert payload — list of client + emails pairs."""
 
     clients: List[ClientEmailIn]
 
@@ -121,9 +138,10 @@ async def list_clients(
         col.find(
             query_filter,
             {
-                "_id":        0,
+                "_id":         0,
                 "client_name": 1,
-                "email":       1,
+                "email":       1,   # kept for backward-compat display
+                "emails":      1,
                 "created_at":  1,
                 "updated_at":  1,
             },
@@ -133,7 +151,16 @@ async def list_clients(
         .limit(limit)
     )
 
-    clients = await cursor.to_list(length=limit)
+    raw_clients = await cursor.to_list(length=limit)
+
+    # Normalise: always expose 'emails' list to the frontend
+    def _migrate(doc: dict) -> dict:
+        if not doc.get("emails"):
+            legacy = doc.get("email")
+            doc["emails"] = [legacy] if legacy else []
+        return doc
+
+    clients = [_migrate(c) for c in raw_clients]
 
     return {
         "total":   total,
@@ -154,20 +181,20 @@ async def save_client(
     admin: CurrentUser = Depends(require_admin),
 ):
     """
-    Add a new client or update an existing client's email.
+    Add a new client or update an existing client's email addresses (max 5).
 
     POST /api/admin/clients
     Body:
         {
             "client_name": "AJANTA PHARMA",
-            "email":       "mis@ajanta.com"
+            "emails":      ["mis@ajanta.com", "accounts@ajanta.com"]
         }
 
     Response:
-        { "message": "Client email saved" }
+        { "message": "Client emails saved" }
     """
-    await save_client_email(body.client_name, body.email)
-    return {"message": "Client email saved"}
+    await save_client_emails(body.client_name, body.emails)
+    return {"message": "Client emails saved"}
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +237,7 @@ async def save_clients_bulk(
         )
 
     result = await bulk_save_clients(
-        [{"client_name": c.client_name, "email": c.email} for c in body.clients]
+        [{"client_name": c.client_name, "emails": c.emails} for c in body.clients]
     )
     return result
 

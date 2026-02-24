@@ -77,31 +77,57 @@ function ConfirmDialog({ message, onConfirm, onCancel, loading }) {
 
 function ClientModal({ initial, onSave, onClose, loading }) {
     const [clientName, setClientName] = useState(initial?.client_name ?? '');
-    const [email, setEmail]           = useState(initial?.email ?? '');
-    const [error, setError]           = useState('');
+    const [emails, setEmails]         = useState(
+        initial?.emails?.length ? [...initial.emails] : ['']
+    );
+    const [error, setError] = useState('');
 
     const isEdit = Boolean(initial);
+
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const addEmail = () => {
+        if (emails.length < 5) setEmails((prev) => [...prev, '']);
+    };
+
+    const removeEmail = (idx) => {
+        if (emails.length === 1) return; // keep at least 1 input
+        setEmails((prev) => prev.filter((_, i) => i !== idx));
+    };
+
+    const updateEmail = (idx, val) => {
+        setEmails((prev) => prev.map((e, i) => (i === idx ? val : e)));
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         setError('');
-        const trimName  = clientName.trim();
-        const trimEmail = email.trim();
-        if (!trimName)  return setError('Client name is required.');
-        if (!trimEmail) return setError('Email is required.');
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimEmail))
-            return setError('Enter a valid email address.');
-        onSave({ client_name: trimName, email: trimEmail });
+
+        const trimName = clientName.trim();
+        if (!trimName) return setError('Client name is required.');
+
+        const valid = emails.map((e) => e.trim().toLowerCase()).filter(Boolean);
+        if (!valid.length) return setError('At least one email address is required.');
+
+        for (const em of valid) {
+            if (!EMAIL_RE.test(em))
+                return setError(`"${em}" is not a valid email address.`);
+        }
+        const deduped = [...new Set(valid)];
+        if (deduped.length > 5) return setError('A maximum of 5 email addresses is allowed.');
+
+        onSave({ client_name: trimName, emails: deduped });
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
                 <h2 className="text-base font-semibold text-gray-900 mb-5">
-                    {isEdit ? `Edit email — ${initial.client_name}` : 'Add Client'}
+                    {isEdit ? `Edit emails — ${initial.client_name}` : 'Add Client'}
                 </h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Client Name */}
                     <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
                             Client Name
@@ -121,17 +147,42 @@ function ClientModal({ initial, onSave, onClose, loading }) {
                         )}
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Email Address
+                    {/* Email Inputs */}
+                    <div className="space-y-2">
+                        <label className="block text-xs font-medium text-gray-600">
+                            Email Addresses
+                            <span className="ml-1 text-gray-400 font-normal">(max 5)</span>
                         </label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="client@example.com"
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none transition"
-                        />
+                        {emails.map((em, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                                <input
+                                    type="email"
+                                    value={em}
+                                    onChange={(e) => updateEmail(idx, e.target.value)}
+                                    placeholder={`Email ${idx + 1}`}
+                                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none transition"
+                                />
+                                {emails.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removeEmail(idx)}
+                                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                        title="Remove"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        {emails.length < 5 && (
+                            <button
+                                type="button"
+                                onClick={addEmail}
+                                className="text-xs text-red-500 hover:text-red-700 font-medium mt-1 hover:underline"
+                            >
+                                + Add another email
+                            </button>
+                        )}
                     </div>
 
                     {error && (
@@ -204,19 +255,22 @@ export default function ClientEmailsPage() {
     useEffect(() => { fetchClients(); }, [fetchClients]);
 
     // ── Filtered list ──────────────────────────────────────────────────────
-    const filtered = clients.filter((c) =>
-        c.client_name.toLowerCase().includes(search.toLowerCase()) ||
-        (c.email ?? '').toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = clients.filter((c) => {
+        const q = search.toLowerCase();
+        return (
+            c.client_name.toLowerCase().includes(q) ||
+            (c.emails ?? []).some((e) => e.toLowerCase().includes(q))
+        );
+    });
 
     // ── Save (add / edit) ──────────────────────────────────────────────────
-    const handleSave = async ({ client_name, email }) => {
+    const handleSave = async ({ client_name, emails }) => {
         setModalBusy(true);
         try {
-            await upsertAdminClient({ client_name, email });
+            await upsertAdminClient({ client_name, emails });
             showToast(
                 modal?.mode === 'edit'
-                    ? `Email updated for ${client_name}.`
+                    ? `Emails updated for ${client_name}.`
                     : `${client_name} added successfully.`
             );
             setModal(null);
@@ -294,7 +348,7 @@ export default function ClientEmailsPage() {
                                         Client Name
                                     </th>
                                     <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                        Email
+                                        Emails
                                     </th>
                                     <th className="text-right px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                                         Actions
@@ -314,7 +368,18 @@ export default function ClientEmailsPage() {
                                             {client.client_name}
                                         </td>
                                         <td className="px-5 py-3.5 text-gray-600">
-                                            {client.email || (
+                                            {(client.emails ?? []).length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {client.emails.map((em) => (
+                                                        <span
+                                                            key={em}
+                                                            className="inline-block text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-0.5"
+                                                        >
+                                                            {em}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            ) : (
                                                 <span className="text-amber-500 text-xs font-medium">
                                                     — not set —
                                                 </span>
