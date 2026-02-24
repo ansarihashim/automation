@@ -36,12 +36,12 @@ const DropZone = ({ label, description, file, onFile }) => {
 
     return (
         <div className="space-y-2">
-            <p className="text-sm font-semibold text-gray-700">{label}</p>
+            <p className="text-sm font-semibold text-gray-300">{label}</p>
             <div
                 className={`rounded-lg border-2 border-dashed p-10 text-center cursor-pointer transition-all duration-200
-                    ${dragActive ? 'border-blue-500 bg-blue-50'
-                    : file ? 'border-green-400 bg-green-50'
-                    : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'}`}
+                    ${dragActive ? 'border-[#d4a017] bg-[#d4a017]/10'
+                    : file ? 'border-green-600 bg-green-900/20'
+                    : 'border-gray-600 hover:border-[#d4a017] hover:bg-gray-800/20'}`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
@@ -51,31 +51,31 @@ const DropZone = ({ label, description, file, onFile }) => {
                 <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleChange} />
 
                 {file ? (
-                    <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 max-w-sm mx-auto shadow-sm">
+                    <div className="flex items-center justify-between bg-[#0f0f0f] border border-gray-700 rounded-lg px-4 py-3 max-w-sm mx-auto">
                         <div className="flex items-center gap-3 min-w-0">
-                            <div className="p-2 bg-green-100 rounded-lg text-green-600 shrink-0"><FileText size={18} /></div>
+                            <div className="p-2 bg-green-900/40 rounded-lg text-green-400 shrink-0"><FileText size={18} /></div>
                             <div className="text-left min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
-                                <p className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                                <p className="text-sm font-medium text-gray-200 truncate">{file.name}</p>
+                                <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
                             </div>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); onFile(null); }}
-                            className="ml-3 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                            className="ml-3 p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors shrink-0">
                             <X size={16} />
                         </button>
                     </div>
                 ) : (
                     <div className="space-y-3">
                         <div className={`w-12 h-12 rounded-xl mx-auto flex items-center justify-center transition-all duration-200
-                            ${dragActive ? 'bg-blue-100 text-blue-600 scale-110' : 'bg-gray-100 text-gray-400'}`}>
+                            ${dragActive ? 'bg-[#d4a017]/20 text-[#d4a017] scale-110' : 'bg-gray-800 text-gray-500'}`}>
                             <CloudUpload size={24} />
                         </div>
                         <div>
-                            <p className="text-sm font-medium text-gray-700">{description}</p>
-                            <p className="text-xs text-gray-400 mt-1">Supported formats: .xlsx, .xls</p>
+                            <p className="text-sm font-medium text-gray-400">{description}</p>
+                            <p className="text-xs text-gray-500 mt-1">Supported formats: .xlsx, .xls</p>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); inputRef.current.click(); }}
-                            className="inline-block mt-1 bg-white border border-gray-300 text-gray-700 text-sm px-5 py-2 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all active:scale-95">
+                            className="inline-block mt-1 bg-[#0f0f0f] border border-gray-600 text-gray-300 text-sm px-5 py-2 rounded-lg font-medium hover:bg-gray-800 hover:border-gray-400 transition-all active:scale-95">
                             Browse Files
                         </button>
                     </div>
@@ -101,6 +101,8 @@ const UploadPage = () => {
     const [rawFile, setRawFile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [processingMsg, setProcessingMsg] = useState('');
+    const [warning, setWarning] = useState('');
     const [missingClients, setMissingClients] = useState([]);
 
     // Admin email-entry form state
@@ -125,9 +127,16 @@ const UploadPage = () => {
         if (!canSubmit) return;
         setLoading(true);
         setError('');
+        setWarning('');
+        setProcessingMsg('Processing file\u2026 This may take up to 1\u20132 minutes.');
         setMissingClients([]);
         setClientEmails({});
         setSaveSuccess(false);
+
+        const timer = setTimeout(() => {
+            setWarning('Processing is taking longer than usual. Please wait. Do not refresh the page.');
+        }, 30000);
+
         try {
             const formData = new FormData();
             formData.append('master_file', rawFile);
@@ -136,11 +145,14 @@ const UploadPage = () => {
                 timeout: 120000,
             });
 
+            clearTimeout(timer);
             const data = res.data;
 
             if (data.status === 'missing_clients') {
                 setMissingClients(data.missing_clients || []);
                 setError('Some clients are missing email addresses. Please contact an admin to add them.');
+                setProcessingMsg('');
+                setWarning('');
                 setLoading(false);
                 return;
             }
@@ -148,19 +160,28 @@ const UploadPage = () => {
             if (data.status === 'failed') {
                 setError(data.message || 'Upload failed. Please contact an admin.');
                 setMissingClients(data.missing_clients || []);
+                setProcessingMsg('');
+                setWarning('');
                 setLoading(false);
                 return;
             }
 
             // status === 'success'
+            setProcessingMsg('File processed successfully.');
+            setWarning('');
             navigate(`/batches/${data.batch_id}`);
         } catch (e) {
+            clearTimeout(timer);
+            setProcessingMsg('');
+            setWarning('');
             const detail = e.response?.data?.detail;
             if (detail && typeof detail === 'object' && detail.missing_clients) {
                 setMissingClients(detail.missing_clients);
                 setError(detail.message || 'Missing client emails. Please contact admin.');
+            } else if (!e.response) {
+                setError('Server is not reachable. Please try again.');
             } else {
-                setError(Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : (detail || e.message));
+                setError(Array.isArray(detail) ? detail.map(d => d.msg).join('\n') : (detail || 'Processing failed. Please try uploading again.'));
             }
             setLoading(false);
         }
@@ -209,14 +230,14 @@ const UploadPage = () => {
     return (
         <div className="max-w-2xl mx-auto space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold text-gray-900">Upload Files</h1>
-                <p className="text-gray-500 mt-1 text-sm">
+                <h1 className="text-2xl font-semibold text-[#d4a017]">Upload Files</h1>
+                <p className="text-gray-400 mt-1 text-sm">
                     Upload raw shipment file to create a batch.
                 </p>
             </div>
 
             {/* ── Upload Card ── */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
+            <div className="bg-[#1a1a1a] rounded-xl border border-gray-700 shadow-sm p-6 space-y-6">
                 <DropZone
                     label="Upload Raw File"
                     description="Drag & drop your raw Excel file here"
@@ -226,7 +247,7 @@ const UploadPage = () => {
 
                 {/* ── Save-success banner ── */}
                 {saveSuccess && (
-                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3">
+                    <div className="flex items-center gap-2 bg-green-900/30 border border-green-700 text-green-300 text-sm rounded-lg px-4 py-3">
                         <CheckCircle size={16} className="shrink-0" />
                         <span>Emails saved successfully. Please upload the file again to continue.</span>
                     </div>
@@ -234,7 +255,7 @@ const UploadPage = () => {
 
                 {/* ── Generic error (no missing clients) ── */}
                 {error && missingClients.length === 0 && (
-                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+                    <div className="flex items-start gap-2 bg-red-900/30 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-3">
                         <AlertCircle size={16} className="mt-0.5 shrink-0" />
                         <span>{error}</span>
                     </div>
@@ -242,14 +263,14 @@ const UploadPage = () => {
 
                 {/* ── Missing clients panel ── */}
                 {missingClients.length > 0 && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4">
-                        <div className="flex items-start gap-2 text-amber-800">
-                            <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-500" />
+                    <div className="rounded-lg border border-amber-700 bg-amber-900/20 p-4 space-y-4">
+                        <div className="flex items-start gap-2 text-amber-300">
+                            <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-400" />
                             <div>
                                 <p className="text-sm font-semibold">Missing client email addresses</p>
                                 {isAdmin
-                                    ? <p className="text-xs text-amber-700 mt-0.5">Please add emails for missing clients below, then re-upload.</p>
-                                    : <p className="text-xs text-amber-700 mt-0.5">Please contact an admin to add the missing emails before uploading.</p>
+                                    ? <p className="text-xs text-amber-400 mt-0.5">Please add emails for missing clients below, then re-upload.</p>
+                                    : <p className="text-xs text-amber-400 mt-0.5">Please contact an admin to add the missing emails before uploading.</p>
                                 }
                             </div>
                         </div>
@@ -259,7 +280,7 @@ const UploadPage = () => {
                             <div className="space-y-3">
                                 {missingClients.map(client => (
                                     <div key={client} className="flex items-center gap-3">
-                                        <span className="w-52 shrink-0 text-xs font-mono font-medium text-gray-800 truncate" title={client}>
+                                        <span className="w-52 shrink-0 text-xs font-mono font-medium text-gray-300 truncate" title={client}>
                                             {client}
                                         </span>
                                         <input
@@ -267,7 +288,7 @@ const UploadPage = () => {
                                             placeholder="email@example.com"
                                             value={clientEmails[client] || ''}
                                             onChange={e => handleEmailChange(client, e.target.value)}
-                                            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            className="flex-1 text-sm bg-[#0f0f0f] border border-gray-600 text-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#d4a017] focus:border-[#d4a017] placeholder-gray-600"
                                         />
                                     </div>
                                 ))}
@@ -277,8 +298,8 @@ const UploadPage = () => {
                                     disabled={!canSaveEmails || saveLoading}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150
                                         ${canSaveEmails && !saveLoading
-                                            ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98] shadow-sm'
-                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                            ? 'bg-[#d4a017] text-black hover:bg-[#f2c94c] active:scale-[0.98] shadow-sm'
+                                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
                                 >
                                     <Save size={14} />
                                     {saveLoading ? 'Saving…' : 'Save Emails'}
@@ -288,7 +309,7 @@ const UploadPage = () => {
                             /* ── Non-admin: read-only list ── */
                             <ul className="space-y-1 ml-1">
                                 {missingClients.map(c => (
-                                    <li key={c} className="text-xs font-mono text-amber-900 bg-amber-100 rounded px-2 py-0.5 inline-block mr-1 mb-1">
+                                    <li key={c} className="text-xs font-mono text-amber-300 bg-amber-900/30 rounded px-2 py-0.5 inline-block mr-1 mb-1">
                                         {c}
                                     </li>
                                 ))}
@@ -297,43 +318,72 @@ const UploadPage = () => {
                     </div>
                 )}
 
+                {/* ── Processing spinner ── */}
+                {loading && (
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <div className="animate-spin h-4 w-4 border-2 border-gray-600 border-t-[#d4a017] rounded-full shrink-0" />
+                        Processing your file…
+                    </div>
+                )}
+
+                {/* ── Processing info box (shown while loading) ── */}
+                {loading && processingMsg && (
+                    <div className="p-3 bg-blue-900/20 border border-blue-800 rounded-lg text-sm text-blue-300">
+                        {processingMsg}
+                    </div>
+                )}
+
+                {/* ── 30-second warning ── */}
+                {warning && (
+                    <div className="p-3 bg-yellow-900/20 border border-yellow-700 rounded-lg text-sm text-yellow-300">
+                        {warning}
+                    </div>
+                )}
+
+                {/* ── Success message (brief flash before navigation) ── */}
+                {!loading && processingMsg && !error && (
+                    <div className="p-3 bg-green-900/20 border border-green-700 rounded-lg text-sm text-green-300">
+                        {processingMsg}
+                    </div>
+                )}
+
                 <WriteAccess fallback={
-                    <p className="text-sm text-gray-400 italic text-center py-2">Read-only access — uploading is disabled.</p>
+                    <p className="text-sm text-gray-500 italic text-center py-2">Read-only access — uploading is disabled.</p>
                 }>
                     <button onClick={handleSubmit} disabled={!canSubmit}
-                        className={`w-full py-3 rounded-lg font-semibold text-white text-sm transition-all duration-150
+                        className={`w-full py-3 rounded-lg font-semibold text-sm transition-all duration-150
                             ${canSubmit
-                                ? 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-sm hover:shadow-md'
-                                : 'bg-gray-300 cursor-not-allowed'}`}>
+                                ? 'bg-[#d4a017] text-black hover:bg-[#f2c94c] active:scale-[0.98] shadow-sm hover:shadow-md'
+                                : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}>
                         {loading ? 'Processing…' : 'Process & Upload'}
                     </button>
                 </WriteAccess>
             </div>
 
             {/* ── Recent Batches ── */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                    <h2 className="text-sm font-semibold text-gray-800">Recent Batches</h2>
+            <div className="bg-[#1a1a1a] rounded-xl border border-gray-700 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-700">
+                    <h2 className="text-sm font-semibold text-gray-200">Recent Batches</h2>
                 </div>
                 {recentLoading ? (
-                    <div className="py-6 text-center text-xs text-gray-400">Loading…</div>
+                    <div className="py-6 text-center text-xs text-gray-500">Loading…</div>
                 ) : recentBatches.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-gray-400">No batches yet. Upload your first file above.</div>
+                    <div className="py-6 text-center text-xs text-gray-500">No batches yet. Upload your first file above.</div>
                 ) : (
-                    <ul className="divide-y divide-gray-50">
+                    <ul className="divide-y divide-gray-700">
                         {recentBatches.map(batch => (
                             <li key={batch.batch_id}
                                 onClick={() => navigate(`/batches/${batch.batch_id}`)}
-                                className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors group">
+                                className="flex items-center justify-between px-4 py-3 hover:bg-gray-800 cursor-pointer transition-colors group">
                                 <div className="min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 font-mono truncate">{batch.batch_id}</p>
+                                    <p className="text-sm font-medium text-gray-200 font-mono truncate">{batch.batch_id}</p>
                                     <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                                         <Clock size={11} /> {formatDate(batch.created_at)}
-                                        <span className="ml-2 text-gray-300">·</span>
+                                        <span className="ml-2 text-gray-600">·</span>
                                         <span className="ml-1">{batch.total_clients ?? batch.total_rows ?? '—'} clients</span>
                                     </p>
                                 </div>
-                                <ChevronRight size={15} className="text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+                                <ChevronRight size={15} className="text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
                             </li>
                         ))}
                     </ul>

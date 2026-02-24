@@ -52,6 +52,7 @@ from app.services.client_service import (
 )
 from app.auth.dependencies import require_write_access
 from app.models.user_model import CurrentUser
+from app.database import get_db
 
 router = APIRouter()
 
@@ -168,6 +169,22 @@ async def upload_master(
             f"⚠️  Upload blocked — {len(missing)} client(s) missing emails "
             f"({elapsed}s) | user: {current_user.email} | role: {current_user.role}"
         )
+
+        # Persist unresolved missing-client requests so admin can see them.
+        _db = get_db()
+        for _client in missing:
+            await _db.missing_client_requests.update_one(
+                {"client_name": _client, "resolved": False},
+                {
+                    "$setOnInsert": {
+                        "client_name":   _client,
+                        "requested_by":  current_user.email,
+                        "created_at":    datetime.utcnow(),
+                        "resolved":      False,
+                    }
+                },
+                upsert=True,
+            )
 
         if current_user.role != "admin":
             raise HTTPException(

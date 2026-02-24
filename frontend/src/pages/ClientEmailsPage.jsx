@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import {
+import api, {
     getAdminClients,
     upsertAdminClient,
     deleteAdminClient,
@@ -28,8 +28,8 @@ function Toast({ message, type, onClose }) {
 
     const colors =
         type === 'success'
-            ? 'bg-green-50 border-green-200 text-green-800'
-            : 'bg-red-50 border-red-200 text-red-800';
+            ? 'bg-green-900/30 border-green-700 text-green-300'
+            : 'bg-red-900/30 border-red-700 text-red-300';
 
     return (
         <div
@@ -48,22 +48,22 @@ function Toast({ message, type, onClose }) {
 
 function ConfirmDialog({ message, onConfirm, onCancel, loading }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
-                <h3 className="text-base font-semibold text-gray-900 mb-2">Confirm Delete</h3>
-                <p className="text-sm text-gray-600 mb-6">{message}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-[#1a1a1a] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+                <h3 className="text-base font-semibold text-white mb-2">Confirm Delete</h3>
+                <p className="text-sm text-gray-400 mb-6">{message}</p>
                 <div className="flex gap-3 justify-end">
                     <button
                         onClick={onCancel}
                         disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
+                        className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onConfirm}
                         disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 disabled:opacity-50 transition flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition flex items-center gap-2"
                     >
                         {loading && (
                             <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -121,16 +121,16 @@ function ClientModal({ initial, onSave, onClose, loading }) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-[#1a1a1a] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+                <h2 className="text-base font-semibold text-white mb-5">
                     {isEdit ? `Edit emails — ${initial.client_name}` : 'Add Client'}
                 </h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Client Name */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-xs font-medium text-gray-400 mb-1">
                             Client Name
                         </label>
                         <input
@@ -139,10 +139,10 @@ function ClientModal({ initial, onSave, onClose, loading }) {
                             onChange={(e) => setClientName(e.target.value)}
                             disabled={isEdit}
                             placeholder="e.g. AJANTA PHARMA"
-                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none disabled:bg-gray-50 disabled:text-gray-400 transition"
+                            className="w-full px-3 py-2 text-sm bg-[#0f0f0f] border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-[#d4a017] focus:border-[#d4a017] outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-gray-600 transition"
                         />
                         {!isEdit && (
-                            <p className="text-[11px] text-gray-400 mt-1">
+                            <p className="text-[11px] text-gray-500 mt-1">
                                 Should match exactly as it appears in uploaded Excel files.
                             </p>
                         )}
@@ -150,9 +150,9 @@ function ClientModal({ initial, onSave, onClose, loading }) {
 
                     {/* Email Inputs */}
                     <div className="space-y-2">
-                        <label className="block text-xs font-medium text-gray-600">
+                        <label className="block text-xs font-medium text-gray-400">
                             Email Addresses
-                            <span className="ml-1 text-gray-400 font-normal">(max 5)</span>
+                            <span className="ml-1 text-gray-500 font-normal">(max 5)</span>
                         </label>
                         {emails.map((em, idx) => (
                             <div key={idx} className="flex gap-2 items-center">
@@ -161,13 +161,13 @@ function ClientModal({ initial, onSave, onClose, loading }) {
                                     value={em}
                                     onChange={(e) => updateEmail(idx, e.target.value)}
                                     placeholder={`Email ${idx + 1}`}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none transition"
+                                    className="flex-1 px-3 py-2 text-sm bg-[#0f0f0f] border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-[#d4a017] focus:border-[#d4a017] outline-none placeholder-gray-600 transition"
                                 />
                                 {emails.length > 1 && (
                                     <button
                                         type="button"
                                         onClick={() => removeEmail(idx)}
-                                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                        className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition"
                                         title="Remove"
                                     >
                                         ×
@@ -179,7 +179,7 @@ function ClientModal({ initial, onSave, onClose, loading }) {
                             <button
                                 type="button"
                                 onClick={addEmail}
-                                className="text-xs text-red-500 hover:text-red-700 font-medium mt-1 hover:underline"
+                                className="text-xs text-[#d4a017] hover:text-[#f2c94c] font-medium mt-1 hover:underline"
                             >
                                 + Add another email
                             </button>
@@ -187,7 +187,7 @@ function ClientModal({ initial, onSave, onClose, loading }) {
                     </div>
 
                     {error && (
-                        <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                        <p className="text-xs text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
                             {error}
                         </p>
                     )}
@@ -197,14 +197,14 @@ function ClientModal({ initial, onSave, onClose, loading }) {
                             type="button"
                             onClick={onClose}
                             disabled={loading}
-                            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
+                            className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="px-5 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 disabled:opacity-50 transition flex items-center gap-2"
+                            className="px-5 py-2 text-sm font-medium text-black bg-[#d4a017] rounded-lg hover:bg-[#f2c94c] disabled:opacity-50 transition flex items-center gap-2"
                         >
                             {loading && (
                                 <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -282,13 +282,13 @@ function BulkImportModal({ onImport, onClose, loading }) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-[#1a1a1a] border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 flex flex-col gap-4">
                 <div>
-                    <h2 className="text-base font-semibold text-gray-900">Bulk Import Clients</h2>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <h2 className="text-base font-semibold text-white">Bulk Import Clients</h2>
+                    <p className="text-xs text-gray-400 mt-1">
                         One client per line. Format:
-                        <code className="ml-1 px-1 py-0.5 bg-gray-100 rounded text-[11px]">
+                        <code className="ml-1 px-1 py-0.5 bg-gray-800 text-gray-300 rounded text-[11px]">
                             CLIENT NAME,email1@example.com,email2@example.com
                         </code>
                     </p>
@@ -303,26 +303,26 @@ function BulkImportModal({ onImport, onClose, loading }) {
                         'ENZA ZADEN,enza@company.com\n' +
                         'CLIENT C,info@clientc.com'
                     }
-                    className="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none resize-none transition"
+                    className="w-full px-3 py-2 text-sm font-mono bg-[#0f0f0f] border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-[#d4a017] focus:border-[#d4a017] outline-none resize-none placeholder-gray-600 transition"
                 />
 
                 {/* Preview */}
                 {preview.length > 0 && (
-                    <div className="bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-600 max-h-32 overflow-y-auto">
-                        <p className="font-semibold text-gray-700 mb-1">
+                    <div className="bg-gray-800 rounded-lg px-3 py-2 text-xs text-gray-300 max-h-32 overflow-y-auto">
+                        <p className="font-semibold text-gray-200 mb-1">
                             {preview.length} client{preview.length !== 1 ? 's' : ''} ready to import:
                         </p>
                         {preview.map((c) => (
                             <div key={c.client_name} className="truncate">
                                 <span className="font-medium">{c.client_name}</span>
-                                <span className="text-gray-400 ml-1">→ {c.emails.join(', ')}</span>
+                                <span className="text-gray-500 ml-1">→ {c.emails.join(', ')}</span>
                             </div>
                         ))}
                     </div>
                 )}
 
                 {error && (
-                    <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 whitespace-pre-line">
+                    <p className="text-xs text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2 whitespace-pre-line">
                         {error}
                     </p>
                 )}
@@ -332,7 +332,7 @@ function BulkImportModal({ onImport, onClose, loading }) {
                         type="button"
                         onClick={onClose}
                         disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
+                        className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition"
                     >
                         Cancel
                     </button>
@@ -340,7 +340,7 @@ function BulkImportModal({ onImport, onClose, loading }) {
                         type="button"
                         onClick={handleImport}
                         disabled={loading || !preview.length}
-                        className="px-5 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 disabled:opacity-50 transition flex items-center gap-2"
+                        className="px-5 py-2 text-sm font-medium text-black bg-[#d4a017] rounded-lg hover:bg-[#f2c94c] disabled:opacity-50 transition flex items-center gap-2"
                     >
                         {loading && (
                             <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -372,6 +372,7 @@ export default function ClientEmailsPage() {
     const [bulkModal,    setBulkModal]    = useState(false);
     const [bulkBusy,     setBulkBusy]    = useState(false);
     const [toast,      setToast]      = useState(null); // { message, type }
+    const [missingRequests, setMissingRequests] = useState([]);
 
     const showToast = useCallback((message, type = 'success') => {
         setToast({ message, type });
@@ -390,7 +391,18 @@ export default function ClientEmailsPage() {
         }
     }, [showToast]);
 
+    const fetchMissingRequests = useCallback(async () => {
+        try {
+            const res = await api.get('/api/admin/clients/missing-requests');
+            setMissingRequests(res.data ?? []);
+        } catch (e) {
+            // Non-fatal — silently ignore
+            console.error('Failed to load missing client requests', e);
+        }
+    }, []);
+
     useEffect(() => { fetchClients(); }, [fetchClients]);
+    useEffect(() => { fetchMissingRequests(); }, [fetchMissingRequests]);
 
     // ── Filtered list ──────────────────────────────────────────────────────
     const filtered = clients.filter((c) => {
@@ -413,6 +425,7 @@ export default function ClientEmailsPage() {
             );
             setModal(null);
             fetchClients();
+            fetchMissingRequests(); // refresh banner after a client is saved
         } catch (err) {
             showToast(err?.response?.data?.detail ?? 'Save failed.', 'error');
         } finally {
@@ -477,11 +490,39 @@ export default function ClientEmailsPage() {
         <div className="p-6 max-w-5xl mx-auto">
             {/* Page header */}
             <div className="mb-6">
-                <h1 className="text-xl font-bold text-gray-900">Client Emails</h1>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <h1 className="text-xl font-bold text-[#d4a017] flex items-center gap-2">
+                    Client Emails
+                    {missingRequests.length > 0 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-900/30 text-yellow-300 border border-yellow-700">
+                            {missingRequests.length} pending
+                        </span>
+                    )}
+                </h1>
+                <p className="text-sm text-gray-400 mt-0.5">
                     Manage recipient email addresses for MIS reports.
                 </p>
             </div>
+
+            {/* Missing client requests banner */}
+            {missingRequests.length > 0 && (
+                <div className="mb-5 p-4 bg-yellow-900/20 border border-yellow-700 rounded-xl">
+                    <div className="font-semibold text-yellow-300 text-sm mb-2">
+                        ⚠️ Missing email requests ({missingRequests.length})
+                    </div>
+                    <ul className="text-sm text-yellow-400 list-disc ml-5 space-y-0.5">
+                        {missingRequests.map((r, i) => (
+                            <li key={i}>
+                                <span className="font-medium">{r.client_name}</span>
+                                {' '}— requested by{' '}
+                                <span className="font-medium">{r.requested_by}</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="text-xs text-yellow-500 mt-2">
+                        Add emails for these clients to resolve requests automatically.
+                    </p>
+                </div>
+            )}
 
             {/* Toolbar */}
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
@@ -490,18 +531,18 @@ export default function ClientEmailsPage() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search by name or email…"
-                    className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none transition"
+                    className="flex-1 px-4 py-2.5 text-sm bg-[#0f0f0f] border border-gray-700 text-white rounded-xl focus:ring-2 focus:ring-[#d4a017] focus:border-[#d4a017] outline-none placeholder-gray-600 transition"
                 />
                 <button
                     onClick={() => setBulkModal(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 active:bg-red-200 transition shrink-0"
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-[#d4a017] bg-[#d4a017]/10 border border-[#d4a017]/30 rounded-xl hover:bg-[#d4a017]/20 transition shrink-0"
                 >
                     <span className="text-base leading-none">⇧</span>
                     Bulk Import
                 </button>
                 <button
                     onClick={() => setModal({ mode: 'add' })}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-red-500 rounded-xl hover:bg-red-600 active:bg-red-700 transition shrink-0"
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-black bg-[#d4a017] rounded-xl hover:bg-[#f2c94c] transition shrink-0"
                 >
                     <span className="text-base leading-none">+</span>
                     Add Client
@@ -509,11 +550,11 @@ export default function ClientEmailsPage() {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="bg-[#1a1a1a] rounded-2xl border border-gray-700 overflow-hidden shadow-sm">
                 {loading ? (
                     <Spinner />
                 ) : filtered.length === 0 ? (
-                    <div className="py-20 text-center text-sm text-gray-400">
+                    <div className="py-20 text-center text-sm text-gray-500">
                         {search
                             ? 'No clients match your search.'
                             : 'No clients yet. Click "Add Client" to get started.'}
@@ -522,47 +563,47 @@ export default function ClientEmailsPage() {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-gray-100 bg-gray-50">
-                                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-8">
+                                <tr className="border-b border-gray-700 bg-[#d4a017]">
+                                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-black uppercase tracking-wide w-8">
                                         #
                                     </th>
-                                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-black uppercase tracking-wide">
                                         Client Name
                                     </th>
-                                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-black uppercase tracking-wide">
                                         Emails
                                     </th>
-                                    <th className="text-right px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                    <th className="text-right px-5 py-3.5 text-xs font-semibold text-black uppercase tracking-wide">
                                         Actions
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-gray-700">
                                 {filtered.map((client, idx) => (
                                     <tr
                                         key={client.client_name}
-                                        className="hover:bg-gray-50/60 transition-colors"
+                                        className="hover:bg-gray-800 transition-colors"
                                     >
-                                        <td className="px-5 py-3.5 text-gray-400 font-mono text-xs">
+                                        <td className="px-5 py-3.5 text-gray-500 font-mono text-xs">
                                             {idx + 1}
                                         </td>
-                                        <td className="px-5 py-3.5 font-medium text-gray-900">
+                                        <td className="px-5 py-3.5 font-medium text-gray-200">
                                             {client.client_name}
                                         </td>
-                                        <td className="px-5 py-3.5 text-gray-600">
+                                        <td className="px-5 py-3.5">
                                             {(client.emails ?? []).length > 0 ? (
                                                 <div className="flex flex-wrap gap-1">
                                                     {client.emails.map((em) => (
                                                         <span
                                                             key={em}
-                                                            className="inline-block text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-0.5"
+                                                            className="inline-block text-xs bg-gray-700 text-gray-300 rounded-full px-2.5 py-0.5"
                                                         >
                                                             {em}
                                                         </span>
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <span className="text-amber-500 text-xs font-medium">
+                                                <span className="text-amber-400 text-xs font-medium">
                                                     — not set —
                                                 </span>
                                             )}
@@ -573,7 +614,7 @@ export default function ClientEmailsPage() {
                                                     onClick={() =>
                                                         setModal({ mode: 'edit', client })
                                                     }
-                                                    className="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition"
+                                                    className="px-3 py-1.5 text-xs font-medium text-[#d4a017] bg-[#d4a017]/10 rounded-lg hover:bg-[#d4a017]/20 transition"
                                                 >
                                                     Edit
                                                 </button>
@@ -581,7 +622,7 @@ export default function ClientEmailsPage() {
                                                     onClick={() =>
                                                         setDeleteTarget(client.client_name)
                                                     }
-                                                    className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition"
+                                                    className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-900/20 rounded-lg hover:bg-red-900/40 transition"
                                                 >
                                                     Delete
                                                 </button>
@@ -596,7 +637,7 @@ export default function ClientEmailsPage() {
 
                 {/* Footer count */}
                 {!loading && filtered.length > 0 && (
-                    <div className="px-5 py-3 border-t border-gray-100 text-xs text-gray-400 flex justify-between items-center">
+                    <div className="px-5 py-3 border-t border-gray-700 text-xs text-gray-500 flex justify-between items-center">
                         <span>
                             {filtered.length} of {clients.length} client
                             {clients.length !== 1 ? 's' : ''}
@@ -604,7 +645,7 @@ export default function ClientEmailsPage() {
                         {search && (
                             <button
                                 onClick={() => setSearch('')}
-                                className="text-red-500 hover:underline"
+                                className="text-[#d4a017] hover:underline"
                             >
                                 Clear search
                             </button>

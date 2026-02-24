@@ -30,19 +30,19 @@ const StatusBadge = ({ status }) => {
 // ---------------------------------------------------------------------------
 const StatCard = ({ icon, label, value, color = 'blue' }) => {
     const colorMap = {
-        blue: 'bg-blue-50 text-blue-600',
-        green: 'bg-green-50 text-green-600',
-        yellow: 'bg-yellow-50 text-yellow-600',
-        red: 'bg-red-50 text-red-600',
+        blue:   'bg-blue-900/40 text-blue-400',
+        green:  'bg-green-900/40 text-green-400',
+        yellow: 'bg-yellow-900/40 text-yellow-400',
+        red:    'bg-red-900/40 text-red-400',
     };
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+        <div className="bg-[#1a1a1a] rounded-xl border border-gray-700 p-4 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${colorMap[color]}`}>
                 {icon}
             </div>
             <div>
-                <p className="text-xs text-gray-500">{label}</p>
-                <p className="text-lg font-bold text-gray-900">{value}</p>
+                <p className="text-xs text-gray-400">{label}</p>
+                <p className="text-lg font-bold text-white">{value}</p>
             </div>
         </div>
     );
@@ -142,7 +142,7 @@ const BatchDetailsPage = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
-                <div className="flex items-center gap-2 text-gray-500">
+                <div className="flex items-center gap-2 text-gray-400">
                     <RefreshCw size={18} className="animate-spin" />
                     Loading batch details…
                 </div>
@@ -154,9 +154,9 @@ const BatchDetailsPage = () => {
         return (
             <div className="max-w-2xl mx-auto mt-12 text-center space-y-4">
                 <XCircle size={48} className="mx-auto text-red-400" />
-                <p className="text-red-600 font-medium">{error}</p>
+                <p className="text-red-400 font-medium">{error}</p>
                 <button onClick={() => navigate('/files')}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
+                    className="px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 text-sm">
                     ← Back to Files
                 </button>
             </div>
@@ -170,23 +170,23 @@ const BatchDetailsPage = () => {
             <div className="flex items-start justify-between gap-4">
                 <div>
                     <button onClick={() => navigate('/files')}
-                        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-2 transition-colors">
+                        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 mb-2 transition-colors">
                         <ArrowLeft size={15} /> Back to Files
                     </button>
-                    <h1 className="text-2xl font-bold text-gray-900 font-mono">{batch_id}</h1>
-                    <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+                    <h1 className="text-2xl font-bold text-[#d4a017] font-mono">{batch_id}</h1>
+                    <p className="text-sm text-gray-400 mt-0.5 flex items-center gap-1.5">
                         <Calendar size={13} /> Created {formatDate(batch?.created_at)}
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                     {batch?.mother_file_url && (
                         <a href={batch.mother_file_url} target="_blank" rel="noreferrer"
-                            className="flex items-center gap-1.5 text-sm px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                            className="flex items-center gap-1.5 text-sm px-3 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors">
                             <ExternalLink size={13} /> Mother File
                         </a>
                     )}
                     <button onClick={loadData}
-                        className="flex items-center gap-1.5 text-sm px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                        className="flex items-center gap-1.5 text-sm px-3 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-800 transition-colors">
                         <RefreshCw size={13} /> Refresh
                     </button>
                 </div>
@@ -201,24 +201,24 @@ const BatchDetailsPage = () => {
             </div>
 
             {/* ── Client table ── */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                    <h2 className="text-sm font-semibold text-gray-800">
+            <div className="bg-[#1a1a1a] rounded-xl border border-gray-700 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+                    <h2 className="text-sm font-semibold text-gray-200">
                         Client List
-                        <span className="ml-1.5 text-xs font-normal text-gray-400">({clients.length})</span>
+                        <span className="ml-1.5 text-xs font-normal text-gray-500">({clients.length})</span>
                     </h2>
-                    <button onClick={toggleAll} className="text-xs text-blue-600 hover:text-blue-800 font-medium underline">
+                    <button onClick={toggleAll} className="text-xs text-[#d4a017] hover:text-[#f2c94c] font-medium underline">
                         {selected.size === clients.length ? 'Unselect All' : 'Select All'}
                     </button>
                 </div>
 
                 {clients.length === 0 ? (
-                    <div className="py-12 text-center text-gray-400 text-sm">No clients found for this batch.</div>
+                    <div className="py-12 text-center text-gray-500 text-sm">No clients found for this batch.</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                                <tr className="bg-[#d4a017] border-b border-gray-700 text-xs text-black uppercase tracking-wide">
                                     <th className="px-4 py-2.5 text-left w-8"></th>
                                     <th className="px-4 py-2.5 text-left">Client</th>
                                     <th className="px-4 py-2.5 text-left">Email</th>
@@ -227,21 +227,21 @@ const BatchDetailsPage = () => {
                                     <th className="px-4 py-2.5 text-left">Action</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-gray-700">
                                 {clients.map((client) => (
-                                    <tr key={client.client_name} className="hover:bg-gray-50 transition-colors">
+                                    <tr key={client.client_name} className="hover:bg-gray-800 transition-colors">
                                         <td className="px-4 py-3">
                                             <input
                                                 type="checkbox"
                                                 checked={selected.has(client.client_name)}
                                                 onChange={() => toggleClient(client.client_name)}
-                                                className="rounded border-gray-300 text-blue-600"
+                                                className="rounded border-gray-600 text-[#d4a017] bg-gray-800"
                                             />
                                         </td>
-                                        <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                                        <td className="px-4 py-3 font-medium text-gray-200 whitespace-nowrap">
                                             {client.client_name}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-500 text-xs">
+                                        <td className="px-4 py-3 text-gray-400 text-xs">
                                             {client.recipient_email || <span className="text-red-400 italic">No email</span>}
                                         </td>
                                         <td className="px-4 py-3">
@@ -251,13 +251,13 @@ const BatchDetailsPage = () => {
                                             <div className="flex items-center gap-2">
                                                 {client.generated_url && (
                                                     <a href={client.generated_url} target="_blank" rel="noreferrer"
-                                                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800" title="Generated">
+                                                        className="flex items-center gap-1 text-xs text-[#d4a017] hover:text-[#f2c94c]" title="Generated">
                                                         <FileText size={12} /> Gen
                                                     </a>
                                                 )}
                                                 {client.custom_url && (
                                                     <a href={client.custom_url} target="_blank" rel="noreferrer"
-                                                        className="flex items-center gap-1 text-xs text-yellow-600 hover:text-yellow-800" title="Custom">
+                                                        className="flex items-center gap-1 text-xs text-yellow-500 hover:text-yellow-300" title="Custom">
                                                         <Upload size={12} /> Custom
                                                     </a>
                                                 )}
@@ -266,7 +266,7 @@ const BatchDetailsPage = () => {
                                         <td className="px-4 py-3">
                                             <button
                                                 onClick={() => setModalClient(client)}
-                                                className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors font-medium">
+                                                className="text-xs px-3 py-1.5 bg-[#d4a017] text-black rounded-lg hover:bg-[#f2c94c] border border-transparent transition-colors font-semibold">
                                                 Manage
                                             </button>
                                         </td>
@@ -280,29 +280,29 @@ const BatchDetailsPage = () => {
 
             {/* ── Bulk send ── */}
             <WriteAccess fallback={
-                <p className="text-sm text-gray-400 italic text-center py-2">Read-only access — sending disabled.</p>
+                <p className="text-sm text-gray-500 italic text-center py-2">Read-only access — sending disabled.</p>
             }>
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
-                    <p className="text-sm font-semibold text-gray-800">
-                        Bulk Send — <span className="text-blue-600">{selected.size} selected</span>
+                <div className="bg-[#1a1a1a] rounded-xl border border-gray-700 shadow-sm p-4 space-y-3">
+                    <p className="text-sm font-semibold text-gray-200">
+                        Bulk Send — <span className="text-[#d4a017]">{selected.size} selected</span>
                     </p>
                     {sendResult && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-800">
+                        <div className="bg-green-900/40 border border-green-700 rounded-lg px-3 py-2 text-xs text-green-300">
                             ✅ Sent: {sendResult.total_sent} &nbsp;|&nbsp; Failed: {sendResult.failed}
                         </div>
                     )}
                     {sendError && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
+                        <div className="bg-red-900/40 border border-red-700 rounded-lg px-3 py-2 text-xs text-red-300">
                             {sendError}
                         </div>
                     )}
                     <button
                         onClick={handleBulkSend}
                         disabled={selected.size === 0 || sending}
-                        className={`w-full py-2.5 rounded-lg font-semibold text-white text-sm flex items-center justify-center gap-2 transition-all
+                        className={`w-full py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all
                             ${selected.size === 0 || sending
-                                ? 'bg-gray-300 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-sm'}`}>
+                                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                : 'bg-[#d4a017] text-black hover:bg-[#f2c94c] active:scale-[0.98] shadow-sm'}`}>
                         <Send size={15} />
                         {sending ? 'Sending…' : `Send to ${selected.size} client${selected.size !== 1 ? 's' : ''}`}
                     </button>

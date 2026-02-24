@@ -29,6 +29,7 @@ from pydantic import BaseModel
 from app.auth.dependencies import require_read_access, require_write_access
 from app.models.schemas import MISEmailRequest
 from app.models.user_model import CurrentUser
+from app.utils.client_utils import normalize_client_name
 from app.services.batch_mongo_service import (
     get_batch_by_id,
     get_all_email_logs,
@@ -73,8 +74,8 @@ def _filter_candidates(
     """Return pending clients filtered by optional name list and limit."""
     candidates = [c for c in all_clients if c.get("status") == "pending"]
     if requested:
-        upper = {n.strip().upper() for n in requested}
-        candidates = [c for c in candidates if c["client_name"].upper() in upper]
+        upper = {normalize_client_name(n) for n in requested}
+        candidates = [c for c in candidates if normalize_client_name(c["client_name"]) in upper]
     if limit and limit > 0:
         candidates = candidates[:limit]
     return candidates

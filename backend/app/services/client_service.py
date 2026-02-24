@@ -24,6 +24,7 @@ import pandas as pd
 from pymongo import UpdateOne
 
 from app.database import get_db
+from app.utils.client_utils import normalize_client_name
 
 
 # ---------------------------------------------------------------------------
@@ -33,14 +34,15 @@ from app.database import get_db
 def _normalize_client(order_id_val) -> Optional[str]:
     """
     Extract and normalise a client name from an 'Order id' cell value.
-    Rules: strip whitespace, uppercase. Returns None for blank / NaN.
+    Rules: strip whitespace, collapse internal spaces, uppercase.
+    Returns None for blank / NaN.
     Mirrors the same logic used in processing_service.py and shipment_service.py.
     """
     if order_id_val is None:
         return None
     if isinstance(order_id_val, float) and math.isnan(order_id_val):
         return None
-    s = str(order_id_val).strip().upper()
+    s = normalize_client_name(str(order_id_val))
     return s if s else None
 
 
@@ -156,7 +158,7 @@ async def save_client_emails(client_name: str, emails: list[str]) -> None:
 
     db = get_db()
     now = datetime.now(timezone.utc)
-    client_name = client_name.strip().upper()
+    client_name = normalize_client_name(client_name)
 
     # Deduplicate while preserving order
     seen: set[str] = set()
@@ -249,7 +251,7 @@ async def bulk_save_clients(clients: list[dict]) -> dict:
     now = datetime.now(timezone.utc)
     ops = [
         UpdateOne(
-            {"client_name": c["client_name"]},
+            {"client_name": normalize_client_name(c["client_name"])},
             {
                 "$set": {
                     # Support both legacy {email: str} and new {emails: list[str]} format
@@ -261,6 +263,7 @@ async def bulk_save_clients(clients: list[dict]) -> dict:
                     "updated_at": now,
                 },
                 "$setOnInsert": {
+                    "client_name": normalize_client_name(c["client_name"]),
                     "created_at": now,
                 },
             },
@@ -287,5 +290,5 @@ async def delete_client(client_name: str) -> bool:
     Returns True if a document was deleted, False if not found.
     """
     db = get_db()
-    result = await db["clients"].delete_one({"client_name": client_name})
+    result = await db["clients"].delete_one({"client_name": normalize_client_name(client_name)})
     return result.deleted_count > 0

@@ -22,6 +22,7 @@ from pydantic import BaseModel, EmailStr, ValidationError, field_validator
 from app.auth.dependencies import require_admin
 from app.database import get_db
 from app.models.user_model import CurrentUser
+from app.utils.client_utils import normalize_client_name
 from app.services.client_service import (
     bulk_save_clients,
     delete_client,
@@ -45,10 +46,10 @@ class ClientEmailIn(BaseModel):
     @field_validator("client_name", mode="before")
     @classmethod
     def normalise_name(cls, v: str) -> str:
-        v = str(v).strip().upper()
-        if not v:
+        result = normalize_client_name(str(v))
+        if not result:
             raise ValueError("client_name must not be empty")
-        return v
+        return result
 
     @field_validator("emails", mode="before")
     @classmethod
@@ -171,6 +172,38 @@ async def list_clients(
 
 
 # ---------------------------------------------------------------------------
+# GET /missing-requests  — unresolved missing-client notifications
+# ---------------------------------------------------------------------------
+
+
+@router.get("/missing-requests")
+async def get_missing_requests(
+    admin: CurrentUser = Depends(require_admin),
+):
+    """
+    Return all unresolved missing-client requests created during uploads.
+
+    GET /api/admin/clients/missing-requests
+
+    Response:
+        [
+            {
+                "client_name": "AJANTA PHARMA",
+                "requested_by": "user@example.com",
+                "created_at": "2026-02-24T10:00:00"
+            },
+            ...
+        ]
+    """
+    db = get_db()
+    requests_cursor = db.missing_client_requests.find(
+        {"resolved": False},
+        {"_id": 0, "client_name": 1, "requested_by": 1, "created_at": 1},
+    ).sort("created_at", -1)
+    return await requests_cursor.to_list(length=100)
+
+
+# ---------------------------------------------------------------------------
 # POST /  — upsert single client
 # ---------------------------------------------------------------------------
 
@@ -194,6 +227,12 @@ async def save_client(
         { "message": "Client emails saved" }
     """
     await save_client_emails(body.client_name, body.emails)
+    # Auto-resolve any pending missing-client requests for this client.
+    db = get_db()
+    await db.missing_client_requests.update_many(
+        {"client_name": body.client_name, "resolved": False},
+        {"$set": {"resolved": True}},
+    )
     return {"message": "Client emails saved"}
 
 
