@@ -83,6 +83,11 @@ async def shutdown_event():
     await close_mongo_connection()
 
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
 @app.get("/")
 def read_root():
     return {
