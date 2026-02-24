@@ -393,11 +393,15 @@ export default function ClientEmailsPage() {
 
     const fetchMissingRequests = useCallback(async () => {
         try {
-            const res = await api.get('/api/admin/clients/missing-requests');
+            const res = await api.get('/admin/clients/missing-requests');
             setMissingRequests(res.data ?? []);
         } catch (e) {
-            // Non-fatal — silently ignore
-            console.error('Failed to load missing client requests', e);
+            if (e.response?.status === 404) {
+                console.warn('Missing requests endpoint not available');
+                setMissingRequests([]);
+            } else {
+                console.error('Failed to load missing client requests', e);
+            }
         }
     }, []);
 
