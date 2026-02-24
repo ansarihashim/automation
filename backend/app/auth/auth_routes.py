@@ -9,8 +9,36 @@ from app.database import get_db
 from app.auth.auth_utils import hash_password, verify_password, create_access_token
 from app.auth.dependencies import get_current_user
 from app.models.user_model import LoginRequest, TokenResponse, UserOut, CurrentUser
+from app.config.settings import AUTO_ADMIN_EMAILS
 
 router = APIRouter()
+
+
+def _is_auto_admin(email: str) -> bool:
+    """Return True if this email should always be admin+write+active."""
+    return email.strip().lower() in AUTO_ADMIN_EMAILS
+
+
+async def _ensure_auto_admin(users_col, email: str, user: dict) -> dict:
+    """
+    If the email is in AUTO_ADMIN_EMAILS, unconditionally promote the user
+    to admin / write / active in MongoDB and return the updated user dict.
+    This is a no-op for all other emails.
+    """
+    if not _is_auto_admin(email):
+        return user
+
+    await users_col.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "role":       "admin",
+                "permission": "write",
+                "status":     "active",
+            }
+        },
+    )
+    return {**user, "role": "admin", "permission": "write", "status": "active"}
 
 
 @router.post("/login", response_model=TokenResponse | dict)
@@ -35,6 +63,10 @@ async def login_or_register(body: LoginRequest):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect password",
             )
+
+        # Auto-admin promotion — runs before status checks so a previously
+        # pending auto-admin email is immediately activated.
+        existing = await _ensure_auto_admin(users_col, email, existing)
 
         if existing["status"] == "pending":
             return {"message": "Your account is pending admin approval."}
@@ -65,8 +97,8 @@ async def login_or_register(body: LoginRequest):
     # Check if this is the very first user
     total_users = await users_col.count_documents({})
 
-    if total_users == 0:
-        # First user → admin, active
+    if total_users == 0 or _is_auto_admin(email):
+        # First user OR auto-admin email → admin, active
         role = "admin"
         permission = "write"
         user_status = "active"

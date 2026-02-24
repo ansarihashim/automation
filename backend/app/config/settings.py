@@ -39,3 +39,10 @@ SUPPORT_EMAIL: str = os.getenv("SUPPORT_EMAIL", "customer.support@kiirusxpress.c
 # Support phone numbers shown in outbound MIS emails
 SHIPMENT_QUERY_PHONE: str = os.getenv("SHIPMENT_QUERY_PHONE", "9921002224")
 PICKUP_QUERY_PHONE: str = os.getenv("PICKUP_QUERY_PHONE", "9921002229")
+
+# Emails that are always granted admin + write + active on every login.
+# No DB migration needed — enforced at login time.
+AUTO_ADMIN_EMAILS: frozenset[str] = frozenset({
+    "sushil.katrale@kiirusxpress.com",
+    "harshal.patil@kiirusxpress.com",
+})
