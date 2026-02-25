@@ -110,7 +110,7 @@ async def send_mis_email(
   <!-- Header -->
   <tr>
     <td style="background:#000000;color:#E6B800;padding:18px 24px;font-size:20px;font-weight:bold;border-bottom:1px solid #2A2A2A;">
-      Kiirus Xpress
+      KiirusXpress
     </td>
   </tr>
 
@@ -134,13 +134,10 @@ async def send_mis_email(
             <div style="color:#E6B800;font-weight:bold;margin-bottom:6px;">
               &#128206; MIS Report (Excel)
             </div>
-            <div style="color:#BBBBBB;font-size:13px;margin-bottom:12px;">
-              The Excel file is also attached with this email.
+            <div style="color:#BBBBBB;font-size:13px;">
+              Your MIS Excel report is attached with this email.<br>
+              Please download it from the attachment section of your email client.
             </div>
-            <a href="{file_url}"
-               style="background:#E6B800;color:#000000;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:bold;display:inline-block;">
-              Download MIS
-            </a>
           </td>
         </tr>
       </table>
