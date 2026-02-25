@@ -99,56 +99,63 @@ async def send_mis_email(
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#F5F5F5;font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0;padding:0;background:#0B0B0B;font-family:Arial,Helvetica,sans-serif;">
 
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F5F5;padding:20px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0B0B0B;padding:30px 10px;">
 <tr><td align="center">
 
 <table width="600" cellpadding="0" cellspacing="0"
-       style="background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0;">
+       style="background:#161616;border-radius:10px;border:1px solid #2A2A2A;overflow:hidden;">
 
   <!-- Header -->
   <tr>
-    <td style="background:#000000;color:#FFD400;padding:16px 24px;font-size:20px;font-weight:bold;">
+    <td style="background:#000000;color:#E6B800;padding:18px 24px;font-size:20px;font-weight:bold;border-bottom:1px solid #2A2A2A;">
       Kiirus Xpress
     </td>
   </tr>
 
   <!-- Body -->
   <tr>
-    <td style="padding:24px;color:#333333;font-size:14px;line-height:1.6;">
+    <td style="padding:24px;color:#FFFFFF;font-size:14px;line-height:1.6;">
 
-      <p style="margin:0 0 12px;">Dear Customer,</p>
+      <p style="margin-top:0;">Dear Customer,</p>
 
       <p style="margin:0 0 12px;">
-        Please find your MIS report for
-        <strong style="color:#000000;">{client_name}</strong>.
+        Your MIS report for
+        <strong style="color:#E6B800;">{client_name}</strong>
+        is ready.
       </p>
 
-      <!-- Attachment Box -->
+      <!-- File Card -->
       <table width="100%" cellpadding="0" cellspacing="0"
-             style="margin:20px 0;border:1px solid #FFD400;border-radius:6px;">
+             style="margin:20px 0;background:#0F0F0F;border:1px solid #2A2A2A;border-radius:8px;">
         <tr>
-          <td style="background:#FFF8CC;padding:14px;">
-            <strong style="color:#000000;">&#128206; Attached File</strong><br>
-            <span style="color:#555555;font-size:13px;">
-              Your MIS Excel report is attached with this email.
-            </span>
+          <td style="padding:16px;">
+            <div style="color:#E6B800;font-weight:bold;margin-bottom:6px;">
+              &#128206; MIS Report (Excel)
+            </div>
+            <div style="color:#BBBBBB;font-size:13px;margin-bottom:12px;">
+              The Excel file is also attached with this email.
+            </div>
+            <a href="{file_url}"
+               style="background:#E6B800;color:#000000;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:bold;display:inline-block;">
+              Download MIS
+            </a>
           </td>
         </tr>
       </table>
 
-      <!-- Support Box -->
+      <!-- Support Card -->
       <table width="100%" cellpadding="0" cellspacing="0"
-             style="margin:18px 0;background:#f2f2f2;border-radius:6px;">
+             style="margin:18px 0;background:#0F0F0F;border:1px solid #2A2A2A;border-radius:8px;">
         <tr>
-          <td style="padding:14px;font-size:14px;line-height:1.8;">
-            <strong>For any assistance:</strong><br><br>
-            <b>Shipment Related Query:</b> {settings.SHIPMENT_QUERY_PHONE}<br>
-            <b>Pickup Related Query:</b> {settings.PICKUP_QUERY_PHONE}<br><br>
-            <b>Email:</b>
+          <td style="padding:14px;color:#BBBBBB;font-size:14px;line-height:1.8;">
+            <strong style="color:#FFFFFF;">Support</strong><br><br>
+            <b style="color:#FFFFFF;">Shipment Query:</b> {settings.SHIPMENT_QUERY_PHONE}<br>
+            <b style="color:#FFFFFF;">Pickup Query:</b> {settings.PICKUP_QUERY_PHONE}<br><br>
+            <b style="color:#FFFFFF;">Email:</b>
             <a href="mailto:{settings.SUPPORT_EMAIL}"
-               style="color:#000000;font-weight:bold;text-decoration:none;">{settings.SUPPORT_EMAIL}</a>
+               style="color:#E6B800;text-decoration:none;">{settings.SUPPORT_EMAIL}</a>
           </td>
         </tr>
       </table>
@@ -163,8 +170,8 @@ async def send_mis_email(
 
   <!-- Footer -->
   <tr>
-    <td style="background:#000000;color:#FFD400;padding:12px 24px;font-size:12px;text-align:center;">
-      This is an automated email. Please do not reply directly.
+    <td style="background:#000000;color:#888888;padding:12px 24px;font-size:12px;text-align:center;border-top:1px solid #2A2A2A;">
+      This is an automated email. Please do not reply.
     </td>
   </tr>
 
@@ -172,6 +179,10 @@ async def send_mis_email(
 
 </td></tr>
 </table>
+
+</body>
+</html>
+"""
 
 </body>
 </html>
